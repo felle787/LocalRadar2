@@ -1,0 +1,122 @@
+import { StyleSheet } from 'react-native';
+
+export const homeScreenStyles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: '#0b0b0c' },
+  screen: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  logoutButton: {
+    backgroundColor: '#2b2b31',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  logoutText: {
+    color: '#d7d7dd',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
+  content: { flex: 1, gap: 12 },
+  columns: { flexDirection: 'row' },
+  rows: { flexDirection: 'column' },
+  stack: { flexDirection: 'column' },
+  left: { flex: 1 },
+  right: { flex: 1 },
+  top: { flex: 1 },
+  bottom: { flex: 1 },
+
+  section: {
+    backgroundColor: '#121214',
+    borderRadius: 16,
+    paddingVertical: 8,
+    overflow: 'hidden',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#c9c9ce',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1f1f22',
+  },
+
+  listPad: { padding: 12, gap: 16 },
+
+  cardRow: {
+    flexDirection: 'column',
+    width: 180,
+    minHeight: 140,
+    padding: 16,
+    backgroundColor: '#1a1a1e',
+    borderRadius: 16,
+    alignItems: 'center',
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  thumb: { width: 80, height: 80, borderRadius: 16, marginBottom: 12 },
+  cardTitle: { color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
+  subtle: { color: '#b2b2b8', fontSize: 13, marginTop: 2, textAlign: 'center' },
+  distance: { color: '#8e8e95', fontSize: 12, marginTop: 6, textAlign: 'center' },
+
+  badgeFollowing: {
+    backgroundColor: '#2b2b31',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    alignSelf: 'center',
+    marginTop: 8,
+  },
+  badgeText: { color: '#d7d7dd', fontSize: 10, fontWeight: '600' },
+
+  cardCol: {
+    width: 200,
+    height: 90,
+    gap: 6,
+    padding: 12,
+    backgroundColor: '#1a1a1e',
+    borderRadius: 16,
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  eventTitle: { color: '#fff', fontSize: 15, fontWeight: '700', flex: 1 },
+  eventDate: { color: '#e0e0ff', fontSize: 13, marginTop: 2 },
+
+  search: {
+    backgroundColor: '#1a1a1e',
+    color: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    fontSize: 14,
+    minWidth: 120,
+    marginBottom: 12,
+  },
+  
+  loadingText: {
+    color: '#c9c9ce',
+    textAlign: 'center',
+    fontSize: 16,
+    padding: 20,
+  },
+});
