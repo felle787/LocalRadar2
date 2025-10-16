@@ -4,54 +4,71 @@ import {
   Text, 
   TouchableOpacity, 
   Alert, 
-  TextInput, 
   ScrollView,
   FlatList 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import firebase from 'firebase/compat/app';
-import { db } from '../database/firebase';
+import { database } from '../database/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { profileScreenStyles } from '../styles/profileScreenStyles';
 
 export default function ProfileScreen({ navigation }) {
-  const { currentUser, logout } = useAuth();
-  const [userVenues, setUserVenues] = useState([]);
+  const { currentUser, userProfile, logout } = useAuth();
+  const [followedVenues, setFollowedVenues] = useState([]);
+  const [favoriteVenues, setFavoriteVenues] = useState([]);
   const [totalVenues, setTotalVenues] = useState(0);
-  const [showAddVenue, setShowAddVenue] = useState(false);
-  const [newVenue, setNewVenue] = useState({
-    name: '',
-    type: 'Bar',
-    location: ''
-  });
-
-  const venueTypes = ['Bar', 'Restaurant', 'Club', 'Cafe', 'Pub'];
 
   useEffect(() => {
-    if (currentUser) {
-      // Subscribe to user's venues
-      const unsubscribe = db.collection('venues')
-        .where('createdBy', '==', currentUser.uid)
-        .onSnapshot((querySnapshot) => {
-          const venuesList = [];
-          querySnapshot.forEach((doc) => {
-            venuesList.push({ id: doc.id, ...doc.data() });
-          });
-          setUserVenues(venuesList);
-        });
+    if (currentUser && userProfile) {
+      let followedUnsubscribe, favoritesUnsubscribe, totalUnsubscribe;
 
-      // Get total venues count
-      const totalUnsubscribe = db.collection('venues')
-        .onSnapshot((querySnapshot) => {
-          setTotalVenues(querySnapshot.size);
-        });
+      // Get all venues and filter locally (Realtime DB doesn't support complex queries like Firestore)
+      const venuesRef = database.ref('venues');
+      
+      totalUnsubscribe = venuesRef.on('value', (snapshot) => {
+        if (snapshot.exists()) {
+          const venues = snapshot.val();
+          const allVenues = Object.keys(venues).map(key => ({
+            id: key,
+            ...venues[key]
+          }));
+
+          // Set total venues count
+          setTotalVenues(allVenues.length);
+
+          // Filter followed venues
+          if (userProfile.followedVenues && userProfile.followedVenues.length > 0) {
+            const followed = allVenues.filter(venue => 
+              userProfile.followedVenues.includes(venue.id)
+            );
+            setFollowedVenues(followed);
+          } else {
+            setFollowedVenues([]);
+          }
+
+          // Filter favorite venues
+          if (userProfile.favoriteVenues && userProfile.favoriteVenues.length > 0) {
+            const favorites = allVenues.filter(venue => 
+              userProfile.favoriteVenues.includes(venue.id)
+            );
+            setFavoriteVenues(favorites);
+          } else {
+            setFavoriteVenues([]);
+          }
+        } else {
+          setTotalVenues(0);
+          setFollowedVenues([]);
+          setFavoriteVenues([]);
+        }
+      });
 
       return () => {
-        unsubscribe();
-        totalUnsubscribe();
+        if (totalUnsubscribe) {
+          venuesRef.off('value', totalUnsubscribe);
+        }
       };
     }
-  }, [currentUser]);
+  }, [currentUser, userProfile]);
 
   const handleLogout = async () => {
     try {
@@ -61,32 +78,29 @@ export default function ProfileScreen({ navigation }) {
     }
   };
 
-  const handleAddVenue = async () => {
-    if (!newVenue.name.trim() || !newVenue.location.trim()) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
-    }
-
+  const unfollowVenue = async (venueId) => {
     try {
-      await db.collection('venues').add({
-        name: newVenue.name.trim(),
-        type: newVenue.type,
-        location: newVenue.location.trim(),
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        createdBy: currentUser.uid
-      });
-      
-      setNewVenue({ name: '', type: 'Bar', location: '' });
-      setShowAddVenue(false);
-      Alert.alert('Success', 'Venue added successfully!');
+      const updatedFollowed = userProfile.followedVenues.filter(id => id !== venueId);
+      await database.ref(`users/${currentUser.uid}/followedVenues`).set(updatedFollowed);
+      Alert.alert('Success', 'Venue unfollowed');
     } catch (error) {
-      Alert.alert('Error', 'Failed to add venue');
+      Alert.alert('Error', 'Failed to unfollow venue');
+    }
+  };
+
+  const removeFavorite = async (venueId) => {
+    try {
+      const updatedFavorites = userProfile.favoriteVenues.filter(id => id !== venueId);
+      await database.ref(`users/${currentUser.uid}/favoriteVenues`).set(updatedFavorites);
+      Alert.alert('Success', 'Venue removed from favorites');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to remove favorite');
     }
   };
 
   const stats = {
-    following: userVenues.length,
-    favorites: Math.floor(userVenues.length * 0.6), // Sample data
+    following: followedVenues.length,
+    favorites: favoriteVenues.length,
     events: totalVenues,
   };
 
@@ -103,78 +117,51 @@ export default function ProfileScreen({ navigation }) {
         {/* User Email */}
         <View style={profileScreenStyles.userSection}>
           <Text style={profileScreenStyles.userEmail}>{currentUser?.email}</Text>
+          <Text style={profileScreenStyles.userType}>
+            {userProfile?.userType === 'business' ? 'Business Account' : 'Customer Account'}
+          </Text>
         </View>
 
         {/* Stats Row */}
         <View style={profileScreenStyles.statsRow}>
-          <StatCard label="My Venues" value={stats.following} />
+          <StatCard label="Following" value={stats.following} />
           <StatCard label="Favorites" value={stats.favorites} />
-          <StatCard label="Total Events" value={stats.events} />
+          <StatCard label="Total Venues" value={stats.events} />
         </View>
 
-        {/* Add Venue Button */}
-        <TouchableOpacity
-          style={profileScreenStyles.addButton}
-          onPress={() => setShowAddVenue(!showAddVenue)}
-        >
-          <Text style={profileScreenStyles.addButtonText}>
-            {showAddVenue ? 'Cancel' : 'Add Venue'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Add Venue Form */}
-        {showAddVenue && (
-          <View style={profileScreenStyles.addVenueForm}>
-            <TextInput
-              style={profileScreenStyles.input}
-              placeholder="Venue Name"
-              placeholderTextColor="#666"
-              value={newVenue.name}
-              onChangeText={(text) => setNewVenue({ ...newVenue, name: text })}
+        {/* Followed Venues */}
+        {followedVenues.length > 0 && (
+          <View style={profileScreenStyles.venuesSection}>
+            <Text style={profileScreenStyles.sectionTitle}>Following</Text>
+            <FlatList
+              data={followedVenues}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <VenueItem 
+                  venue={item} 
+                  onAction={() => unfollowVenue(item.id)}
+                  actionText="Unfollow"
+                />
+              )}
+              style={profileScreenStyles.venuesList}
             />
-            
-            <View style={profileScreenStyles.typeContainer}>
-              {venueTypes.map((type) => (
-                <TouchableOpacity
-                  key={type}
-                  style={[
-                    profileScreenStyles.typeButton,
-                    newVenue.type === type && profileScreenStyles.selectedType
-                  ]}
-                  onPress={() => setNewVenue({ ...newVenue, type })}
-                >
-                  <Text style={[
-                    profileScreenStyles.typeText,
-                    newVenue.type === type && profileScreenStyles.selectedTypeText
-                  ]}>
-                    {type}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            
-            <TextInput
-              style={profileScreenStyles.input}
-              placeholder="Location"
-              placeholderTextColor="#666"
-              value={newVenue.location}
-              onChangeText={(text) => setNewVenue({ ...newVenue, location: text })}
-            />
-            
-            <TouchableOpacity style={profileScreenStyles.submitButton} onPress={handleAddVenue}>
-              <Text style={profileScreenStyles.submitButtonText}>Add Venue</Text>
-            </TouchableOpacity>
           </View>
         )}
 
-        {/* My Venues List */}
-        {userVenues.length > 0 && (
+        {/* Favorite Venues */}
+        {favoriteVenues.length > 0 && (
           <View style={profileScreenStyles.venuesSection}>
-            <Text style={profileScreenStyles.sectionTitle}>My Venues</Text>
+            <Text style={profileScreenStyles.sectionTitle}>Favorites</Text>
             <FlatList
-              data={userVenues}
+              data={favoriteVenues}
               keyExtractor={(item) => item.id}
-              renderItem={({ item }) => <VenueItem venue={item} />}
+              renderItem={({ item }) => (
+                <VenueItem 
+                  venue={item} 
+                  onAction={() => removeFavorite(item.id)}
+                  actionText="Remove"
+                />
+              )}
               style={profileScreenStyles.venuesList}
             />
           </View>
@@ -201,12 +188,22 @@ function StatCard({ label, value }) {
   );
 }
 
-function VenueItem({ venue }) {
+function VenueItem({ venue, onAction, actionText }) {
   return (
     <View style={profileScreenStyles.venueItem}>
-      <Text style={profileScreenStyles.venueName}>{venue.name}</Text>
-      <Text style={profileScreenStyles.venueType}>{venue.type}</Text>
-      <Text style={profileScreenStyles.venueLocation}>{venue.location}</Text>
+      <View style={profileScreenStyles.venueInfo}>
+        <Text style={profileScreenStyles.venueName}>{venue.name}</Text>
+        <Text style={profileScreenStyles.venueType}>{venue.category || venue.type}</Text>
+        <Text style={profileScreenStyles.venueLocation}>{venue.address || venue.location}</Text>
+      </View>
+      {onAction && (
+        <TouchableOpacity 
+          style={profileScreenStyles.actionButton}
+          onPress={onAction}
+        >
+          <Text style={profileScreenStyles.actionButtonText}>{actionText}</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

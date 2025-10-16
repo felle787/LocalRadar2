@@ -6,6 +6,7 @@ export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [userType, setUserType] = useState('customer');
   const [loading, setLoading] = useState(false);
   const { signup } = useAuth();
 
@@ -27,7 +28,7 @@ export default function RegisterScreen({ navigation }) {
 
     try {
       setLoading(true);
-      await signup(email, password);
+      await signup(email, password, userType);
       Alert.alert('Success', 'Account created successfully!');
     } catch (error) {
       Alert.alert('Error', 'Failed to create account. Please try again.');
@@ -65,6 +66,45 @@ export default function RegisterScreen({ navigation }) {
         onChangeText={setConfirmPassword}
         secureTextEntry
       />
+
+      <Text style={styles.sectionTitle}>Account Type</Text>
+      <View style={styles.userTypeContainer}>
+        <TouchableOpacity
+          style={[
+            styles.userTypeButton,
+            userType === 'customer' && styles.selectedUserType
+          ]}
+          onPress={() => setUserType('customer')}
+        >
+          <Text style={[
+            styles.userTypeText,
+            userType === 'customer' && styles.selectedUserTypeText
+          ]}>
+            Customer
+          </Text>
+          <Text style={styles.userTypeDescription}>
+            Discover and follow venues
+          </Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[
+            styles.userTypeButton,
+            userType === 'business' && styles.selectedUserType
+          ]}
+          onPress={() => setUserType('business')}
+        >
+          <Text style={[
+            styles.userTypeText,
+            userType === 'business' && styles.selectedUserTypeText
+          ]}>
+            Business Owner
+          </Text>
+          <Text style={styles.userTypeDescription}>
+            Manage your venue
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       <TouchableOpacity
         style={[styles.button, loading && styles.buttonDisabled]}
@@ -137,5 +177,45 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#007AFF',
     fontSize: 16,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+    marginTop: 10,
+  },
+  userTypeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  userTypeButton: {
+    flex: 1,
+    backgroundColor: 'white',
+    padding: 15,
+    borderRadius: 10,
+    marginHorizontal: 5,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    alignItems: 'center',
+  },
+  selectedUserType: {
+    borderColor: '#007AFF',
+    backgroundColor: '#f0f8ff',
+  },
+  userTypeText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  selectedUserTypeText: {
+    color: '#007AFF',
+  },
+  userTypeDescription: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
   },
 });

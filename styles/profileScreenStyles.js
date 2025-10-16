@@ -45,6 +45,12 @@ export const profileScreenStyles = StyleSheet.create({
     fontWeight: '500',
     color: '#c9c9ce',
     textAlign: 'center',
+    marginBottom: 5,
+  },
+  userType: {
+    fontSize: 14,
+    color: '#888',
+    textAlign: 'center',
   },
 
   statsRow: {
@@ -155,6 +161,12 @@ export const profileScreenStyles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  venueInfo: {
+    flex: 1,
   },
   venueName: {
     fontSize: 16,
@@ -170,5 +182,16 @@ export const profileScreenStyles = StyleSheet.create({
   venueLocation: {
     fontSize: 13,
     color: '#b2b2b8',
+  },
+  actionButton: {
+    backgroundColor: '#ff3b30',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  actionButtonText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });

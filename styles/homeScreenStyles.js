@@ -71,7 +71,7 @@ export const homeScreenStyles = StyleSheet.create({
   },
   thumb: { width: 80, height: 80, borderRadius: 16, marginBottom: 12 },
   cardTitle: { color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
-  subtle: { color: '#b2b2b8', fontSize: 13, marginTop: 2, textAlign: 'center' },
+  subtle: { color: '#c9c9ce', fontSize: 13, marginTop: 2, textAlign: 'center' },
   distance: { color: '#8e8e95', fontSize: 12, marginTop: 6, textAlign: 'center' },
 
   badgeFollowing: {
@@ -86,7 +86,7 @@ export const homeScreenStyles = StyleSheet.create({
 
   cardCol: {
     width: 200,
-    height: 90,
+    minHeight: 120,
     gap: 6,
     padding: 12,
     backgroundColor: '#1a1a1e',
@@ -100,7 +100,8 @@ export const homeScreenStyles = StyleSheet.create({
   },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   eventTitle: { color: '#fff', fontSize: 15, fontWeight: '700', flex: 1 },
-  eventDate: { color: '#e0e0ff', fontSize: 13, marginTop: 2 },
+  eventDescription: { color: '#c9c9ce', fontSize: 13, lineHeight: 18, marginTop: 4 },
+  eventDate: { color: '#007AFF', fontSize: 13, marginTop: 6, fontWeight: '500' },
 
   search: {
     backgroundColor: '#1a1a1e',
@@ -118,5 +119,47 @@ export const homeScreenStyles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 16,
     padding: 20,
+  },
+  emptyState: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#c9c9ce',
+    textAlign: 'center',
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  placeholderImage: {
+    backgroundColor: '#2b2b31',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  statsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingHorizontal: 20,
+  },
+  statCard: {
+    alignItems: 'center',
+    backgroundColor: '#1a1a1e',
+    padding: 20,
+    borderRadius: 12,
+    minWidth: 100,
+  },
+  statNumber: {
+    color: '#007AFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  statLabel: {
+    color: '#888',
+    fontSize: 14,
   },
 });

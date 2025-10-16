@@ -12,6 +12,15 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow LocalRadar2 to use your location to find nearby venues and events."
+        }
+      ],
+      "expo-font"
+    ],
     "ios": {
       "supportsTablet": true
     },
