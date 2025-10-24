@@ -5,13 +5,13 @@ import 'firebase/compat/database';
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCthDlLnVzqsi6790mw0DjUowydveT7qXI",
-  authDomain: "fir-test-b3b87.firebaseapp.com",
-  databaseURL: "https://fir-test-b3b87-default-rtdb.europe-west1.firebasedatabase.app/",
-  projectId: "fir-test-b3b87",
-  storageBucket: "fir-test-b3b87.firebasestorage.app",
-  messagingSenderId: "480777430157",
-  appId: "1:480777430157:web:994ce0c96fec1dd7bceec4"
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID
 };
 
 // Initialize Firebase
