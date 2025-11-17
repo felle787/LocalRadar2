@@ -9,6 +9,7 @@ import {
   FlatList,
   StyleSheet 
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { database } from '../database/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -22,8 +23,32 @@ export default function EventsScreen() {
   // Form fields for new event
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [selectedTime, setSelectedTime] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  
+  // Format dates for display and storage
+  const formatDate = (date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+  
+  const formatTime = (time) => {
+    return time.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  };
+  
+  const formatDateISO = (date) => {
+    return date.toISOString().split('T')[0];
+  };
 
   // Load existing events for this venue
   useEffect(() => {
@@ -66,8 +91,14 @@ export default function EventsScreen() {
       return;
     }
 
-    if (!date.trim()) {
-      Alert.alert('Missing Date', 'Please enter the event date.');
+    // Date and time are now always set from pickers, so no validation needed for empty values
+    const eventDateTime = new Date(selectedDate);
+    eventDateTime.setHours(selectedTime.getHours());
+    eventDateTime.setMinutes(selectedTime.getMinutes());
+    
+    // Check if event is in the past
+    if (eventDateTime < new Date()) {
+      Alert.alert('Invalid Date', 'Event date and time cannot be in the past.');
       return;
     }
 
@@ -84,11 +115,18 @@ export default function EventsScreen() {
         return;
       }
 
+      const eventDateTime = new Date(selectedDate);
+      eventDateTime.setHours(selectedTime.getHours());
+      eventDateTime.setMinutes(selectedTime.getMinutes());
+      
       const eventData = {
         title: title.trim(),
         description: description.trim(),
-        date: date.trim(),
-        time: time.trim(),
+        date: formatDate(selectedDate),
+        time: formatTime(selectedTime),
+        dateISO: formatDateISO(selectedDate),
+        dateTime: eventDateTime.toISOString(),
+        timestamp: eventDateTime.getTime(),
         venueId: currentUser.uid,
         venueName: venueData.name,
         venueAddress: venueData.address,
@@ -109,8 +147,8 @@ export default function EventsScreen() {
       // Clear form
       setTitle('');
       setDescription('');
-      setDate('');
-      setTime('');
+      setSelectedDate(new Date());
+      setSelectedTime(new Date());
 
       Alert.alert('Success!', 'Your event has been posted!');
     } catch (error) {
@@ -188,26 +226,49 @@ export default function EventsScreen() {
 
           <View style={styles.row}>
             <View style={styles.col}>
-              <Text style={styles.label}>Date</Text>
-              <TextInput
-                style={styles.input}
-                value={date}
-                onChangeText={setDate}
-                placeholder="e.g. Dec 15, 2025"
-                placeholderTextColor="#9aa0a6"
-              />
+              <Text style={styles.label}>Event Date *</Text>
+              <TouchableOpacity
+                style={styles.dateTimeButton}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={styles.dateTimeText}>{formatDate(selectedDate)}</Text>
+              </TouchableOpacity>
             </View>
             <View style={styles.col}>
-              <Text style={styles.label}>Time (Optional)</Text>
-              <TextInput
-                style={styles.input}
-                value={time}
-                onChangeText={setTime}
-                placeholder="e.g. 8:00 PM"
-                placeholderTextColor="#9aa0a6"
-              />
+              <Text style={styles.label}>Event Time *</Text>
+              <TouchableOpacity
+                style={styles.dateTimeButton}
+                onPress={() => setShowTimePicker(true)}
+              >
+                <Text style={styles.dateTimeText}>{formatTime(selectedTime)}</Text>
+              </TouchableOpacity>
             </View>
           </View>
+          
+          {showDatePicker && (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display="default"
+              minimumDate={new Date()}
+              onChange={(event, date) => {
+                setShowDatePicker(false);
+                if (date) setSelectedDate(date);
+              }}
+            />
+          )}
+          
+          {showTimePicker && (
+            <DateTimePicker
+              value={selectedTime}
+              mode="time"
+              display="default"
+              onChange={(event, time) => {
+                setShowTimePicker(false);
+                if (time) setSelectedTime(time);
+              }}
+            />
+          )}
 
           <TouchableOpacity 
             style={[styles.button, saving && styles.buttonDisabled]} 
@@ -317,6 +378,20 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#2b2b31',
+  },
+  dateTimeButton: {
+    backgroundColor: '#1a1a1e',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2b2b31',
+    alignItems: 'center',
+  },
+  dateTimeText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
   },
   textArea: {
     textAlignVertical: 'top',

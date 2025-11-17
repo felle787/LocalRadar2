@@ -42,14 +42,39 @@ export const homeScreenStyles = StyleSheet.create({
     paddingVertical: 8,
     overflow: 'hidden',
   },
+  sectionHeader: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1f1f22',
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '700',
     color: '#c9c9ce',
+    marginBottom: 8,
+  },
+  filterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  filterButton: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1f1f22',
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: '#2b2b31',
+  },
+  filterButtonActive: {
+    backgroundColor: '#0084ff',
+  },
+  filterButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9aa0a6',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
   },
 
   listPad: { padding: 12, gap: 16 },

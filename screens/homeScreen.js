@@ -21,7 +21,9 @@ export default function HomeScreen({ navigation }) {
   const [venues, setVenues] = useState([]);
   const [followedVenues, setFollowedVenues] = useState([]);
   const [events, setEvents] = useState([]);
+  const [filteredEvents, setFilteredEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [eventFilter, setEventFilter] = useState('all'); // 'all', 'today', 'upcoming', 'this-week'
   const { width } = useWindowDimensions();
   const isNarrow = width < 380;
 
@@ -76,10 +78,15 @@ export default function HomeScreen({ navigation }) {
               ...eventsData[key]
             });
           });
-          // Sort by creation date, newest first
-          eventsList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          // Sort by event date, soonest first
+          eventsList.sort((a, b) => {
+            const dateA = a.timestamp || new Date(a.dateTime || a.createdAt).getTime();
+            const dateB = b.timestamp || new Date(b.dateTime || b.createdAt).getTime();
+            return dateA - dateB;
+          });
         }
         setEvents(eventsList);
+        applyEventFilter(eventsList, eventFilter);
       });
 
     } else {
@@ -114,6 +121,46 @@ export default function HomeScreen({ navigation }) {
       }
     };
   }, [userProfile]);
+  
+  // Filter events based on selected filter
+  const applyEventFilter = (eventsList, filter) => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    
+    let filtered = eventsList;
+    
+    switch (filter) {
+      case 'today':
+        filtered = eventsList.filter(event => {
+          const eventDate = new Date(event.timestamp || event.dateTime || event.createdAt);
+          const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+          return eventDay.getTime() === today.getTime();
+        });
+        break;
+      case 'upcoming':
+        filtered = eventsList.filter(event => {
+          const eventDate = new Date(event.timestamp || event.dateTime || event.createdAt);
+          return eventDate >= now;
+        });
+        break;
+      case 'this-week':
+        filtered = eventsList.filter(event => {
+          const eventDate = new Date(event.timestamp || event.dateTime || event.createdAt);
+          return eventDate >= now && eventDate <= weekFromNow;
+        });
+        break;
+      default:
+        filtered = eventsList;
+    }
+    
+    setFilteredEvents(filtered);
+  };
+  
+  // Update filtered events when filter changes
+  useEffect(() => {
+    applyEventFilter(events, eventFilter);
+  }, [events, eventFilter]);
 
   const handleLogout = async () => {
     try {
@@ -194,15 +241,38 @@ export default function HomeScreen({ navigation }) {
 
           {/* Bottom section: Recent events or quick stats */}
           <View style={[homeScreenStyles.section, homeScreenStyles.bottom]}>
-            <Text style={homeScreenStyles.sectionTitle}>
-              {userProfile?.userType === 'customer' ? 'Upcoming Events' : 'Quick Stats'}
-            </Text>
+            <View style={homeScreenStyles.sectionHeader}>
+              <Text style={homeScreenStyles.sectionTitle}>
+                {userProfile?.userType === 'customer' ? 'Events' : 'Quick Stats'}
+              </Text>
+              {userProfile?.userType === 'customer' && (
+                <View style={homeScreenStyles.filterRow}>
+                  {['all', 'today', 'upcoming', 'this-week'].map(filter => (
+                    <TouchableOpacity
+                      key={filter}
+                      style={[
+                        homeScreenStyles.filterButton,
+                        eventFilter === filter && homeScreenStyles.filterButtonActive
+                      ]}
+                      onPress={() => setEventFilter(filter)}
+                    >
+                      <Text style={[
+                        homeScreenStyles.filterButtonText,
+                        eventFilter === filter && homeScreenStyles.filterButtonTextActive
+                      ]}>
+                        {filter === 'this-week' ? 'This Week' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
             {loading ? (
               <Text style={homeScreenStyles.loadingText}>Loading...</Text>
             ) : userProfile?.userType === 'customer' ? (
-              events.length > 0 ? (
+              filteredEvents.length > 0 ? (
                 <FlatList
-                  data={events.slice(0, 5)} // Show latest 5 events
+                  data={filteredEvents.slice(0, 8)} // Show up to 8 filtered events
                   keyExtractor={(item) => item.id}
                   contentContainerStyle={homeScreenStyles.listPad}
                   showsHorizontalScrollIndicator={false}
@@ -212,8 +282,10 @@ export default function HomeScreen({ navigation }) {
               ) : (
                 <View style={homeScreenStyles.emptyState}>
                   <Text style={homeScreenStyles.emptyText}>
-                    No events posted yet.{'\n'}
-                    Follow some venues to see their events!
+                    {events.length === 0 
+                      ? "No events posted yet.\nFollow some venues to see their events!"
+                      : `No events found for "${eventFilter === 'this-week' ? 'This Week' : eventFilter.charAt(0).toUpperCase() + eventFilter.slice(1)}"`
+                    }
                   </Text>
                 </View>
               )

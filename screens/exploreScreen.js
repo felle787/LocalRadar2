@@ -8,6 +8,21 @@ import { useAuth } from '../contexts/AuthContext';
 import { exploreScreenStyles as styles } from '../styles/exploreScreenStyles';
 
 
+// Helper function to calculate distance between two coordinates using Haversine formula
+const calculateDistance = (lat1, lon1, lat2, lon2) => {
+  const R = 6371; // Earth's radius in kilometers
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLon = (lon2 - lon1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) *
+      Math.cos(lat2 * (Math.PI / 180)) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in kilometers
+};
+
 export default function ExploreScreen() {
   const { currentUser, userProfile } = useAuth();
   const { width } = useWindowDimensions();
@@ -17,6 +32,7 @@ export default function ExploreScreen() {
   const [region, setRegion] = useState(null); // state til at holde styr på den delen af kortet der vises
   const [loading, setLoading] = useState(true); // state til at vise om brugerens lokation stadig hentes
   const [venues, setVenues] = useState([]); // state til at holde styr på venues fra Firestore
+  const [userLocation, setUserLocation] = useState(null); // store user's location for distance calculations
 
   // henter brugerens lokation når komponenten bliver loadet
   useEffect(() => {
@@ -35,6 +51,11 @@ export default function ExploreScreen() {
           return;
         }
         const loc = await Location.getCurrentPositionAsync({});
+        const userCoords = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude
+        };
+        setUserLocation(userCoords); // store for distance calculations
         setRegion({ // sætter region til brugerens nuværende lokation
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
@@ -66,7 +87,7 @@ export default function ExploreScreen() {
           const data = venues[key];
           // Only include venues that have coordinates
           if (data.coordinates && data.coordinates.latitude && data.coordinates.longitude) {
-            venuesData.push({
+            const venue = {
               id: key,
               name: data.name,
               address: data.address,
@@ -76,9 +97,29 @@ export default function ExploreScreen() {
               description: data.description,
               latitude: data.coordinates.latitude,
               longitude: data.coordinates.longitude,
-            });
+            };
+            
+            // Calculate distance if user location is available
+            if (userLocation) {
+              venue.distance = calculateDistance(
+                userLocation.latitude,
+                userLocation.longitude,
+                venue.latitude,
+                venue.longitude
+              );
+              venue.distanceText = venue.distance < 1 
+                ? `${Math.round(venue.distance * 1000)}m`
+                : `${venue.distance.toFixed(1)}km`;
+            }
+            
+            venuesData.push(venue);
           }
         });
+        
+        // Sort venues by distance (closest first) if user location is available
+        if (userLocation) {
+          venuesData.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+        }
       }
       setVenues(venuesData);
     }, (error) => {
@@ -86,7 +127,7 @@ export default function ExploreScreen() {
     });
 
     return () => venuesRef.off('value', unsubscribe);
-  }, []);
+  }, [userLocation]); // Re-run when user location changes
 
   const layout = useMemo( // useMemo bruges til at huske en værdi mellem rendering, så den ikke skal genberegnes hver gang
     () => (isNarrow ? styles.stack : styles.columns),
@@ -187,7 +228,12 @@ export default function ExploreScreen() {
             renderItem={({ item }) => (
               <View style={localStyles.card}>
                 <TouchableOpacity onPress={() => goToVenue(item)} style={localStyles.cardContent}>
-                  <Text style={localStyles.cardTitle}>{item.name}</Text>
+                  <View style={localStyles.cardHeader}>
+                    <Text style={localStyles.cardTitle}>{item.name}</Text>
+                    {item.distanceText && (
+                      <Text style={localStyles.distanceText}>{item.distanceText}</Text>
+                    )}
+                  </View>
                   <Text style={localStyles.cardSubtitle}>{item.type} • {item.location || item.address}</Text>
                   {item.description ? (
                     <Text style={localStyles.cardDescription}>{item.description}</Text>
@@ -279,11 +325,27 @@ const localStyles = StyleSheet.create({
   cardContent: {
     padding: 16,
   },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
   cardTitle: {
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
-    marginBottom: 4,
+    flex: 1,
+    marginRight: 8,
+  },
+  distanceText: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '600',
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   cardSubtitle: {
     color: '#c9c9ce',
