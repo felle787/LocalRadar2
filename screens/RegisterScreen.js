@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, StyleSheet, KeyboardAvoidingView, ScrollView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function RegisterScreen({ navigation }) {
@@ -38,102 +38,125 @@ export default function RegisterScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
-      <Text style={styles.subtitle}>Join LocalRadar today</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Email"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Confirm Password"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-      />
-
-      <Text style={styles.sectionTitle}>Account Type</Text>
-      <View style={styles.userTypeContainer}>
-        <TouchableOpacity
-          style={[
-            styles.userTypeButton,
-            userType === 'customer' && styles.selectedUserType
-          ]}
-          onPress={() => setUserType('customer')}
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={[
-            styles.userTypeText,
-            userType === 'customer' && styles.selectedUserTypeText
-          ]}>
-            Customer
-          </Text>
-          <Text style={styles.userTypeDescription}>
-            Discover and follow venues
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[
-            styles.userTypeButton,
-            userType === 'business' && styles.selectedUserType
-          ]}
-          onPress={() => setUserType('business')}
-        >
-          <Text style={[
-            styles.userTypeText,
-            userType === 'business' && styles.selectedUserTypeText
-          ]}>
-            Business Owner
-          </Text>
-          <Text style={styles.userTypeDescription}>
-            Manage your venue
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <View style={styles.content}>
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Join LocalRadar today</Text>
 
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleRegister}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? 'Creating Account...' : 'Sign Up'}
-        </Text>
-      </TouchableOpacity>
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor="#999"
+            />
 
-      <TouchableOpacity
-        style={styles.linkButton}
-        onPress={() => navigation.navigate('Login')}
-      >
-        <Text style={styles.linkText}>
-          Already have an account? Sign in
-        </Text>
-      </TouchableOpacity>
-    </View>
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholderTextColor="#999"
+            />
+
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              placeholderTextColor="#999"
+            />
+
+            <Text style={styles.sectionTitle}>Account Type</Text>
+            <View style={styles.userTypeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.userTypeButton,
+                  userType === 'customer' && styles.selectedUserType
+                ]}
+                onPress={() => setUserType('customer')}
+              >
+                <Text style={[
+                  styles.userTypeText,
+                  userType === 'customer' && styles.selectedUserTypeText
+                ]}>
+                  Customer
+                </Text>
+                <Text style={styles.userTypeDescription}>
+                  Discover and follow venues
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  styles.userTypeButton,
+                  userType === 'business' && styles.selectedUserType
+                ]}
+                onPress={() => setUserType('business')}
+              >
+                <Text style={[
+                  styles.userTypeText,
+                  userType === 'business' && styles.selectedUserTypeText
+                ]}>
+                  Business Owner
+                </Text>
+                <Text style={styles.userTypeDescription}>
+                  Manage your venue
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.button, loading && styles.buttonDisabled]}
+              onPress={handleRegister}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? 'Creating Account...' : 'Sign Up'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.linkButton}
+              onPress={() => navigation.navigate('Login')}
+            >
+              <Text style={styles.linkText}>
+                Already have an account? Sign in
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
-    justifyContent: 'center',
     backgroundColor: '#f5f5f5',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 20,
+  },
+  content: {
+    flex: 1,
+    justifyContent: 'center',
+    minHeight: 600,
   },
   title: {
     fontSize: 28,
