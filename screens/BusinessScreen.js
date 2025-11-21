@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import * as Location from 'expo-location';
+import * as ImagePicker from 'expo-image-picker';
 import { database } from '../database/firebase';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -33,6 +34,8 @@ export default function BusinessScreen() {
   const [type, setType] = useState('');
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [description, setDescription] = useState('');
+  const [venueImage, setVenueImage] = useState(null);
+  const [imageUploading, setImageUploading] = useState(false);
   
   // UI state for dropdowns
   const [showPrimaryDropdown, setShowPrimaryDropdown] = useState(false);
@@ -53,6 +56,7 @@ export default function BusinessScreen() {
           setType(data.type || '');
           setSelectedCategories(Array.isArray(data.categories) ? data.categories : []);
           setDescription(data.description || '');
+          setVenueImage(data.imageUrl || null);
         }
       })
       .catch(error => {
@@ -88,6 +92,7 @@ export default function BusinessScreen() {
         type: type || 'Bar',
         categories: selectedCategories,
         description: description.trim(),
+        imageUrl: venueImage || null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -150,6 +155,38 @@ export default function BusinessScreen() {
     });
   };
   
+  const pickImage = async () => {
+    try {
+      // Request permission
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (permissionResult.granted === false) {
+        Alert.alert('Permission Required', 'Permission to access camera roll is required!');
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setImageUploading(true);
+        // In a real app, you'd upload to Firebase Storage here
+        // For now, we'll just store the local URI
+        setVenueImage(result.assets[0].uri);
+        setImageUploading(false);
+      }
+    } catch (error) {
+      setImageUploading(false);
+      Alert.alert('Error', 'Failed to pick image');
+      console.log('Image picker error:', error);
+    }
+  };
+  
   // Close dropdowns when touching outside
   const closeDropdowns = () => {
     setShowPrimaryDropdown(false);
@@ -196,6 +233,37 @@ export default function BusinessScreen() {
         selectTextOnFocus={true}
       />
 
+      <Text style={styles.label}>Venue Image</Text>
+      <View style={styles.imageSection}>
+        {venueImage ? (
+          <View style={styles.imageContainer}>
+            <Image source={{ uri: venueImage }} style={styles.venueImage} />
+            <TouchableOpacity 
+              style={styles.changeImageButton}
+              onPress={pickImage}
+              disabled={imageUploading}
+            >
+              <Text style={styles.changeImageText}>
+                {imageUploading ? 'Uploading...' : 'Change Image'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity 
+            style={styles.addImageButton}
+            onPress={pickImage}
+            disabled={imageUploading}
+          >
+            <Text style={styles.addImageText}>
+              {imageUploading ? 'Uploading...' : '+ Add Venue Image'}
+            </Text>
+            <Text style={styles.addImageSubtext}>
+              Recommended: 16:9 aspect ratio
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+      
       <Text style={styles.label}>Location (Area/City)</Text>
       <TextInput 
         style={styles.input} 
@@ -545,6 +613,50 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  imageSection: {
+    marginBottom: 16,
+  },
+  imageContainer: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  venueImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    backgroundColor: '#2b2b31',
+  },
+  changeImageButton: {
+    backgroundColor: '#0084ff',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  changeImageText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  addImageButton: {
+    backgroundColor: '#2b2b31',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#404040',
+    borderStyle: 'dashed',
+  },
+  addImageText: {
+    color: '#0084ff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  addImageSubtext: {
+    color: '#9aa0a6',
+    fontSize: 12,
   },
 });
 

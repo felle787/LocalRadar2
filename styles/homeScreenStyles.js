@@ -160,6 +160,16 @@ export const homeScreenStyles = StyleSheet.create({
     marginTop: 4,
     fontWeight: '500',
   },
+  placeholderImage: {
+    backgroundColor: '#2b2b31',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  placeholderText: {
+    color: '#9aa0a6',
+    fontSize: 32,
+    fontWeight: 'bold',
+  },
 
   search: {
     backgroundColor: '#1a1a1e',

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, useWindowDimensions, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, useWindowDimensions, ActivityIndicator, StyleSheet, Alert, TextInput, ScrollView, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';//import af google maps komponenten og marker til at vise lokationer på kortet
 import * as Location from 'expo-location'; //expo location bruges til at hente brugerens lokation
@@ -23,6 +23,23 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
   return R * c; // Distance in kilometers
 };
 
+// Category constants for filtering
+const PRIMARY_CATEGORIES = [
+  'Bar', 'Restaurant', 'Pub', 'Club', 'Cafe', 'Brewery', 'Lounge', 
+  'Wine Bar', 'Cocktail Bar', 'Sports Bar', 'Rooftop Bar', 'Hotel Bar'
+];
+
+const ACTIVITY_CATEGORIES = [
+  'Live Music', 'DJ Sets', 'Karaoke', 'Quiz Night', 'Board Games', 
+  'Pool/Billiards', 'Darts', 'Open Mic', 'Comedy Show', 'Trivia', 
+  'Dance Floor', 'Live Sports', 'Wine Tasting', 'Craft Beer', 
+  'Cocktail Specials', 'Happy Hour', 'Outdoor Seating', 'Rooftop', 
+  'Private Events', 'Corporate Events', 'Birthday Parties', 'Live Band', 
+  'Acoustic Music', 'Jazz Music', 'Rock Music', 'Electronic Music',
+  'Food Specials', 'Brunch', 'Late Night', 'Themed Nights', 
+  'Student Discounts', 'Group Bookings', 'VIP Area', 'Smoking Area'
+];
+
 export default function ExploreScreen({ navigation }) {
   const { currentUser, userProfile } = useAuth();
   const { width } = useWindowDimensions();
@@ -32,7 +49,15 @@ export default function ExploreScreen({ navigation }) {
   const [region, setRegion] = useState(null); // state til at holde styr på den delen af kortet der vises
   const [loading, setLoading] = useState(true); // state til at vise om brugerens lokation stadig hentes
   const [venues, setVenues] = useState([]); // state til at holde styr på venues fra Firestore
+  const [filteredVenues, setFilteredVenues] = useState([]); // filtered venue list
   const [userLocation, setUserLocation] = useState(null); // store user's location for distance calculations
+  
+  // Filter states
+  const [distanceInput, setDistanceInput] = useState('');
+  const [selectedDistance, setSelectedDistance] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showDistanceFilter, setShowDistanceFilter] = useState(false);
+  const [showCategoryFilter, setShowCategoryFilter] = useState(false);
 
   // henter brugerens lokation når komponenten bliver loadet
   useEffect(() => {
@@ -122,12 +147,86 @@ export default function ExploreScreen({ navigation }) {
         }
       }
       setVenues(venuesData);
+      applyFilters(venuesData);
     }, (error) => {
       console.error('Error fetching venues:', error);
     });
 
     return () => venuesRef.off('value', unsubscribe);
-  }, [userLocation]); // Re-run when user location changes
+  }, [userLocation]);
+  
+  // Apply filters to venue list
+  const applyFilters = (venueList = venues) => {
+    let filtered = [...venueList];
+    
+    // Distance filter
+    if (selectedDistance && userLocation) {
+      console.log(`Filtering by distance: ${selectedDistance}km`);
+      filtered = filtered.filter(venue => {
+        const hasDistance = venue.distance !== undefined && venue.distance !== null;
+        const withinRange = hasDistance && venue.distance <= selectedDistance;
+        console.log(`Venue ${venue.name}: distance=${venue.distance}, within range=${withinRange}`);
+        return withinRange;
+      });
+    }
+    
+    // Category filter (includes both primary type and activity categories)
+    if (selectedCategory) {
+      console.log(`Filtering by category: ${selectedCategory}`);
+      filtered = filtered.filter(venue => {
+        // Check primary type
+        if (venue.type === selectedCategory) return true;
+        // Check activity categories
+        if (venue.categories && venue.categories.includes(selectedCategory)) return true;
+        return false;
+      });
+    }
+    
+    console.log(`Filtered venues: ${filtered.length} of ${venueList.length}`);
+    setFilteredVenues(filtered);
+  };
+  
+  // Update filters when selections change
+  useEffect(() => {
+    if (venues.length > 0) {
+      applyFilters();
+    }
+  }, [selectedDistance, selectedCategory, venues, userLocation]);
+  
+  // Clear category filter
+  const clearCategoryFilter = () => {
+    setSelectedCategory(null);
+    setShowCategoryFilter(false);
+  };
+  
+  // Handle distance input
+  const handleDistanceInput = (text) => {
+    setDistanceInput(text);
+    const distance = parseFloat(text);
+    if (!isNaN(distance) && distance > 0) {
+      setSelectedDistance(distance);
+    } else {
+      setSelectedDistance(null);
+    }
+  };
+  
+  // Clear distance filter
+  const clearDistanceFilter = () => {
+    setSelectedDistance(null);
+    setDistanceInput('');
+    setShowDistanceFilter(false);
+  };
+  
+  // Toggle dropdowns with mutual exclusion
+  const toggleDistanceFilter = () => {
+    if (showCategoryFilter) setShowCategoryFilter(false);
+    setShowDistanceFilter(!showDistanceFilter);
+  };
+  
+  const toggleCategoryFilter = () => {
+    if (showDistanceFilter) setShowDistanceFilter(false);
+    setShowCategoryFilter(!showCategoryFilter);
+  }; // Re-run when user location changes
 
   const layout = useMemo( // useMemo bruges til at huske en værdi mellem rendering, så den ikke skal genberegnes hver gang
     () => (isNarrow ? styles.stack : styles.columns),
@@ -217,12 +316,130 @@ export default function ExploreScreen({ navigation }) {
           )}
         </View>
 
+        {/* Filter Controls */}
+        <View style={localStyles.filterContainer}>
+          <View style={localStyles.filterRow}>
+            <Text style={localStyles.filterTitle}>Filters:</Text>
+            
+            {/* Distance Filter */}
+            <View style={localStyles.distanceInputContainer}>
+              <Text style={localStyles.distanceLabel}>Within:</Text>
+              <TextInput
+                style={localStyles.distanceInput}
+                value={distanceInput}
+                onChangeText={handleDistanceInput}
+                placeholder="km"
+                placeholderTextColor="#9aa0a6"
+                keyboardType="decimal-pad"
+                maxLength={4}
+                returnKeyType="done"
+                onSubmitEditing={() => Keyboard.dismiss()}
+                onBlur={() => Keyboard.dismiss()}
+                blurOnSubmit={true}
+              />
+              {distanceInput.length > 0 && (
+                <TouchableOpacity 
+                  style={localStyles.doneButton}
+                  onPress={() => Keyboard.dismiss()}
+                >
+                  <Text style={localStyles.doneButtonText}>Done</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            
+            {/* Category Filter */}
+            <TouchableOpacity 
+              style={[localStyles.filterButton, selectedCategory && localStyles.filterButtonActive]}
+              onPress={toggleCategoryFilter}
+            >
+              <Text style={[localStyles.filterButtonText, selectedCategory && localStyles.filterButtonTextActive]}>
+                {selectedCategory || 'Category'}
+              </Text>
+              <Text style={localStyles.filterArrow}>{showCategoryFilter ? '▲' : '▼'}</Text>
+            </TouchableOpacity>
+            
+            {/* Clear Filters */}
+            {(distanceInput || selectedCategory) && (
+              <TouchableOpacity 
+                style={localStyles.clearFiltersButton}
+                onPress={() => {
+                  clearDistanceFilter();
+                  clearCategoryFilter();
+                }}
+              >
+                <Text style={localStyles.clearFiltersText}>Clear</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          {/* Category Dropdown */}
+          {showCategoryFilter && (
+            <View style={localStyles.dropdownContainer}>
+              <ScrollView 
+                style={localStyles.dropdownScrollView}
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={localStyles.dropdownHeader}>Primary Types</Text>
+                {PRIMARY_CATEGORIES.map((category) => (
+                  <TouchableOpacity
+                    key={category}
+                    style={[
+                      localStyles.dropdownItem,
+                      selectedCategory === category && localStyles.dropdownItemSelected
+                    ]}
+                    onPress={() => {
+                      setSelectedCategory(category);
+                      setShowCategoryFilter(false);
+                    }}
+                  >
+                    <Text style={[
+                      localStyles.dropdownItemText,
+                      selectedCategory === category && localStyles.dropdownItemTextSelected
+                    ]}>
+                      {category}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                
+                <Text style={localStyles.dropdownHeader}>Activities</Text>
+                {ACTIVITY_CATEGORIES.map((category) => (
+                  <TouchableOpacity
+                    key={category}
+                    style={[
+                      localStyles.dropdownItem,
+                      selectedCategory === category && localStyles.dropdownItemSelected
+                    ]}
+                    onPress={() => {
+                      setSelectedCategory(category);
+                      setShowCategoryFilter(false);
+                    }}
+                  >
+                    <Text style={[
+                      localStyles.dropdownItemText,
+                      selectedCategory === category && localStyles.dropdownItemTextSelected
+                    ]}>
+                      {category}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+
         {/* venues i nærheden */}
         <View style={[styles.section, styles.listWrap]}>
-          <Text style={localStyles.sectionTitle}>Venues near you</Text>
+          <Text style={localStyles.sectionTitle}>
+            {selectedDistance || selectedCategory ? 'Filtered Venues' : 'Venues near you'}
+            {(selectedDistance || selectedCategory) && (
+              <Text style={localStyles.resultCount}> ({filteredVenues.length} of {venues.length})</Text>
+            )}
+          </Text>
           {/* klikbar card der kalder goToVenue og flytter kortet til venues lokation */}
           <FlatList
-            data={venues}
+            data={filteredVenues}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listPad}
             renderItem={({ item }) => (
@@ -398,5 +615,140 @@ const localStyles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     paddingHorizontal: 32,
+  },
+  // Filter styles
+  filterContainer: {
+    backgroundColor: '#1a1a1e',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#2b2b31',
+  },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterTitle: {
+    color: '#c9c9ce',
+    fontSize: 16,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  filterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2b2b31',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 4,
+  },
+  filterButtonActive: {
+    backgroundColor: '#0084ff',
+  },
+  filterButtonText: {
+    color: '#c9c9ce',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  filterButtonTextActive: {
+    color: '#fff',
+  },
+  filterArrow: {
+    color: '#9aa0a6',
+    fontSize: 12,
+  },
+  clearFiltersButton: {
+    backgroundColor: '#ff6b6b',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  clearFiltersText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dropdownContainer: {
+    backgroundColor: '#2b2b31',
+    borderRadius: 12,
+    marginTop: 8,
+    maxHeight: 200,
+    overflow: 'hidden',
+  },
+  dropdownHeader: {
+    color: '#0084ff',
+    fontSize: 14,
+    fontWeight: '600',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#1a1a1e',
+  },
+  dropdownItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#404040',
+  },
+  dropdownItemSelected: {
+    backgroundColor: '#0084ff',
+  },
+  dropdownItemText: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  dropdownItemTextSelected: {
+    fontWeight: '600',
+  },
+  resultCount: {
+    color: '#0084ff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  distanceInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2b2b31',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#404040',
+  },
+  distanceLabel: {
+    color: '#c9c9ce',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  distanceInput: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+    minWidth: 40,
+    backgroundColor: '#1a1a1e',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: '#0084ff',
+  },
+  doneButton: {
+    backgroundColor: '#0084ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginLeft: 4,
+  },
+  doneButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  dropdownScrollView: {
+    maxHeight: 200,
   },
 });

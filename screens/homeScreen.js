@@ -351,7 +351,9 @@ export default function HomeScreen({ navigation }) {
 function EstablishmentCard({ item }) {
   return (
     <View style={homeScreenStyles.cardRow}>
-      {item.img ? (
+      {item.imageUrl ? (
+        <Image source={{ uri: item.imageUrl }} style={homeScreenStyles.thumb} />
+      ) : item.img ? (
         <Image source={item.img} style={homeScreenStyles.thumb} />
       ) : item.image ? (
         <Image source={{ uri: item.image }} style={homeScreenStyles.thumb} />
