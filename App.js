@@ -13,6 +13,7 @@ import ExploreScreen from './screens/exploreScreen';
 import ProfileScreen from './screens/profileScreen';
 import BusinessScreen from './screens/BusinessScreen';
 import EventsScreen from './screens/EventsScreen';
+import EventDetailsScreen from './screens/EventDetailsScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 
@@ -24,6 +25,24 @@ function AuthStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function HomeStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="HomeMain" component={HomeScreen} />
+      <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function ExploreStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="ExploreMain" component={ExploreScreen} />
+      <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
     </Stack.Navigator>
   );
 }
@@ -48,14 +67,17 @@ function CustomerTabs() {
         tabBarActiveTintColor: '#e0e0ff',
         tabBarInactiveTintColor: '#8e8e95',
         tabBarStyle: {
-          backgroundColor: '#121214',
-          borderTopColor: '#1f1f22',
+          backgroundColor: '#1a1a1e',
+          borderTopColor: '#2b2b31',
+          paddingBottom: 5,
+          paddingTop: 5,
+          height: 60,
         },
         headerShown: false,
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Explore" component={ExploreScreen} />
+      <Tab.Screen name="Home" component={HomeStack} />
+      <Tab.Screen name="Explore" component={ExploreStack} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );

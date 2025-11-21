@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
   TextInput,
   TouchableOpacity,
+  ScrollView,
   Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,7 +24,8 @@ export default function HomeScreen({ navigation }) {
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [eventFilter, setEventFilter] = useState('all'); // 'all', 'today', 'upcoming', 'this-week'
+  const [eventFilter, setEventFilter] = useState('all'); // 'all', 'today', 'upcoming', 'this-week', 'my-events'
+  const [userParticipations, setUserParticipations] = useState({});
   const { width } = useWindowDimensions();
   const isNarrow = width < 380;
 
@@ -122,6 +124,32 @@ export default function HomeScreen({ navigation }) {
     };
   }, [userProfile]);
   
+  // Load user's event participations
+  useEffect(() => {
+    if (!currentUser) {
+      setUserParticipations({});
+      return;
+    }
+
+    const participationsRef = database.ref('eventParticipants');
+    const unsubscribe = participationsRef.on('value', (snapshot) => {
+      const participations = {};
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        Object.keys(data).forEach(eventId => {
+          if (data[eventId][currentUser.uid]) {
+            participations[eventId] = true;
+          }
+        });
+      }
+      setUserParticipations(participations);
+    });
+
+    return () => {
+      participationsRef.off('value', unsubscribe);
+    };
+  }, [currentUser]);
+  
   // Filter events based on selected filter
   const applyEventFilter = (eventsList, filter) => {
     const now = new Date();
@@ -150,6 +178,11 @@ export default function HomeScreen({ navigation }) {
           return eventDate >= now && eventDate <= weekFromNow;
         });
         break;
+      case 'my-events':
+        filtered = eventsList.filter(event => {
+          return userParticipations[event.id] === true;
+        });
+        break;
       default:
         filtered = eventsList;
     }
@@ -160,7 +193,7 @@ export default function HomeScreen({ navigation }) {
   // Update filtered events when filter changes
   useEffect(() => {
     applyEventFilter(events, eventFilter);
-  }, [events, eventFilter]);
+  }, [events, eventFilter, userParticipations]);
 
   const handleLogout = async () => {
     try {
@@ -246,8 +279,13 @@ export default function HomeScreen({ navigation }) {
                 {userProfile?.userType === 'customer' ? 'Events' : 'Quick Stats'}
               </Text>
               {userProfile?.userType === 'customer' && (
-                <View style={homeScreenStyles.filterRow}>
-                  {['all', 'today', 'upcoming', 'this-week'].map(filter => (
+                <ScrollView 
+                  horizontal={true}
+                  showsHorizontalScrollIndicator={false}
+                  style={homeScreenStyles.filterScrollView}
+                  contentContainerStyle={homeScreenStyles.filterRow}
+                >
+                  {['all', 'today', 'upcoming', 'this-week', 'my-events'].map(filter => (
                     <TouchableOpacity
                       key={filter}
                       style={[
@@ -260,11 +298,16 @@ export default function HomeScreen({ navigation }) {
                         homeScreenStyles.filterButtonText,
                         eventFilter === filter && homeScreenStyles.filterButtonTextActive
                       ]}>
-                        {filter === 'this-week' ? 'This Week' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                        {filter === 'this-week' 
+                          ? 'This Week' 
+                          : filter === 'my-events' 
+                            ? 'My Events' 
+                            : filter.charAt(0).toUpperCase() + filter.slice(1)
+                        }
                       </Text>
                     </TouchableOpacity>
                   ))}
-                </View>
+                </ScrollView>
               )}
             </View>
             {loading ? (
@@ -277,14 +320,16 @@ export default function HomeScreen({ navigation }) {
                   contentContainerStyle={homeScreenStyles.listPad}
                   showsHorizontalScrollIndicator={false}
                   horizontal={true}
-                  renderItem={({ item }) => <EventCard item={item} />}
+                  renderItem={({ item }) => <EventCard item={item} navigation={navigation} />}
                 />
               ) : (
                 <View style={homeScreenStyles.emptyState}>
                   <Text style={homeScreenStyles.emptyText}>
                     {events.length === 0 
                       ? "No events posted yet.\nFollow some venues to see their events!"
-                      : `No events found for "${eventFilter === 'this-week' ? 'This Week' : eventFilter.charAt(0).toUpperCase() + eventFilter.slice(1)}"`
+                      : eventFilter === 'my-events'
+                        ? "You haven't joined any events yet.\nBrowse events and join the ones you like!"
+                        : `No events found for "${eventFilter === 'this-week' ? 'This Week' : eventFilter.charAt(0).toUpperCase() + eventFilter.slice(1)}"`
                     }
                   </Text>
                 </View>
@@ -327,11 +372,24 @@ function EstablishmentCard({ item }) {
   );
 }
 
-function EventCard({ item }) {
+function EventCard({ item, navigation }) {
+  const handlePress = () => {
+    navigation.navigate('EventDetails', { event: item });
+  };
+
   return (
-    <View style={homeScreenStyles.cardCol}>
+    <TouchableOpacity style={homeScreenStyles.cardCol} onPress={handlePress}>
       <View style={homeScreenStyles.rowBetween}>
         <Text style={homeScreenStyles.eventTitle}>{item.title}</Text>
+        {item.isFree ? (
+          <View style={homeScreenStyles.freeBadge}>
+            <Text style={homeScreenStyles.freeBadgeText}>FREE</Text>
+          </View>
+        ) : (
+          <View style={homeScreenStyles.priceBadge}>
+            <Text style={homeScreenStyles.priceBadgeText}>{item.ticketPrice} kr</Text>
+          </View>
+        )}
       </View>
       <Text style={homeScreenStyles.subtle}>{item.venueName}</Text>
       <Text style={homeScreenStyles.eventDescription} numberOfLines={2}>
@@ -340,6 +398,11 @@ function EventCard({ item }) {
       <Text style={homeScreenStyles.eventDate}>
         {item.date}{item.time ? ` • ${item.time}` : ''}
       </Text>
-    </View>
+      {item.maxCapacity && (
+        <Text style={homeScreenStyles.capacityInfo}>
+          {item.currentAttendees || 0}/{item.maxCapacity} participants
+        </Text>
+      )}
+    </TouchableOpacity>
   );
 }

@@ -9,13 +9,34 @@ export default function BusinessScreen() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Predefined categories
+  const PRIMARY_CATEGORIES = [
+    'Bar', 'Restaurant', 'Pub', 'Club', 'Cafe', 'Brewery', 'Lounge', 
+    'Wine Bar', 'Cocktail Bar', 'Sports Bar', 'Rooftop Bar', 'Hotel Bar'
+  ];
+  
+  const ACTIVITY_CATEGORIES = [
+    'Live Music', 'DJ Sets', 'Karaoke', 'Quiz Night', 'Board Games', 
+    'Pool/Billiards', 'Darts', 'Open Mic', 'Comedy Show', 'Trivia', 
+    'Dance Floor', 'Live Sports', 'Wine Tasting', 'Craft Beer', 
+    'Cocktail Specials', 'Happy Hour', 'Outdoor Seating', 'Rooftop', 
+    'Private Events', 'Corporate Events', 'Birthday Parties', 'Live Band', 
+    'Acoustic Music', 'Jazz Music', 'Rock Music', 'Electronic Music',
+    'Food Specials', 'Brunch', 'Late Night', 'Themed Nights', 
+    'Student Discounts', 'Group Bookings', 'VIP Area', 'Smoking Area'
+  ];
+
   // Form fields with simple state management
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [locationText, setLocationText] = useState('');
   const [type, setType] = useState('');
-  const [categories, setCategories] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState([]);
   const [description, setDescription] = useState('');
+  
+  // UI state for dropdowns
+  const [showPrimaryDropdown, setShowPrimaryDropdown] = useState(false);
+  const [showCategoriesDropdown, setShowCategoriesDropdown] = useState(false);
 
   // Load existing venue data only once on mount, without blocking
   useEffect(() => {
@@ -30,7 +51,7 @@ export default function BusinessScreen() {
           setAddress(data.address || '');
           setLocationText(data.location || '');
           setType(data.type || '');
-          setCategories(Array.isArray(data.categories) ? data.categories.join(', ') : (data.categories || ''));
+          setSelectedCategories(Array.isArray(data.categories) ? data.categories : []);
           setDescription(data.description || '');
         }
       })
@@ -64,8 +85,8 @@ export default function BusinessScreen() {
         name: name.trim(),
         address: address.trim(),
         location: locationText.trim(),
-        type: type.trim() || 'Bar',
-        categories: categories.trim() ? categories.split(',').map(c => c.trim()).filter(Boolean) : [],
+        type: type || 'Bar',
+        categories: selectedCategories,
         description: description.trim(),
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -119,12 +140,31 @@ export default function BusinessScreen() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to log out');
-    }
+  const toggleCategory = (category) => {
+    setSelectedCategories(prev => {
+      if (prev.includes(category)) {
+        return prev.filter(c => c !== category);
+      } else {
+        return [...prev, category];
+      }
+    });
+  };
+  
+  // Close dropdowns when touching outside
+  const closeDropdowns = () => {
+    setShowPrimaryDropdown(false);
+    setShowCategoriesDropdown(false);
+  };
+  
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', onPress: logout, style: 'destructive' }
+      ]
+    );
   };
 
   return (
@@ -168,39 +208,111 @@ export default function BusinessScreen() {
       />
 
       <Text style={styles.label}>Primary Category</Text>
-      <TextInput 
-        style={styles.input} 
-        value={type} 
-        onChangeText={(text) => {
-          console.log('Type input changed:', text);
-          setType(text);
-        }}
-        placeholder="Bar, Restaurant, Club, Cafe, Pub" 
-        placeholderTextColor="#9aa0a6"
-        autoCapitalize="words"
-        autoCorrect={false}
-        editable={true}
-        selectTextOnFocus={true}
-      />
+      <TouchableOpacity 
+        style={styles.dropdown}
+        onPress={() => setShowPrimaryDropdown(!showPrimaryDropdown)}
+      >
+        <Text style={[styles.dropdownText, !type && styles.placeholderText]}>
+          {type || 'Select primary category'}
+        </Text>
+        <Text style={styles.dropdownArrow}>{showPrimaryDropdown ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
       
-      <Text style={styles.label}>Categories (comma-separated)</Text>
-      <TextInput 
-        style={styles.input} 
-        value={categories} 
-        onChangeText={(text) => {
-          console.log('Categories input changed:', text);
-          setCategories(text);
-        }}
-        placeholder="e.g. Live Music, Craft Beer" 
-        placeholderTextColor="#9aa0a6"
-        autoCapitalize="words"
-        autoCorrect={false}
-        editable={true}
-        selectTextOnFocus={true}
-      />
+      {showPrimaryDropdown && (
+        <View style={styles.dropdownList}>
+          <ScrollView 
+            style={styles.dropdownScrollView}
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
+          >
+            {PRIMARY_CATEGORIES.map((category) => (
+              <TouchableOpacity
+                key={category}
+                style={[styles.dropdownItem, type === category && styles.dropdownItemSelected]}
+                onPress={() => {
+                  setType(category);
+                  setShowPrimaryDropdown(false);
+                }}
+              >
+                <Text style={[styles.dropdownItemText, type === category && styles.dropdownItemTextSelected]}>
+                  {category}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+      
+      <Text style={styles.label}>Categories & Activities</Text>
+      <TouchableOpacity 
+        style={styles.dropdown}
+        onPress={() => setShowCategoriesDropdown(!showCategoriesDropdown)}
+      >
+        <Text style={[styles.dropdownText, selectedCategories.length === 0 && styles.placeholderText]}>
+          {selectedCategories.length === 0 
+            ? 'Select categories & activities'
+            : `${selectedCategories.length} selected: ${selectedCategories.slice(0, 2).join(', ')}${selectedCategories.length > 2 ? '...' : ''}`
+          }
+        </Text>
+        <Text style={styles.dropdownArrow}>{showCategoriesDropdown ? '▲' : '▼'}</Text>
+      </TouchableOpacity>
+      
+      {showCategoriesDropdown && (
+        <View style={styles.dropdownList}>
+          <View style={styles.dropdownHeader}>
+            <Text style={styles.dropdownHeaderText}>Select Categories</Text>
+            <TouchableOpacity 
+              style={styles.dropdownCloseButton}
+              onPress={() => setShowCategoriesDropdown(false)}
+            >
+              <Text style={styles.dropdownCloseText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView 
+            style={styles.dropdownScrollView}
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={true}
+            keyboardShouldPersistTaps="handled"
+          >
+            {ACTIVITY_CATEGORIES.map((category) => (
+              <TouchableOpacity
+                key={category}
+                style={[styles.dropdownItem, selectedCategories.includes(category) && styles.dropdownItemSelected]}
+                onPress={() => toggleCategory(category)}
+              >
+                <Text style={[styles.dropdownItemText, selectedCategories.includes(category) && styles.dropdownItemTextSelected]}>
+                  {category}
+                </Text>
+                {selectedCategories.includes(category) && (
+                  <Text style={styles.checkmark}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
 
 
+      {selectedCategories.length > 0 && (
+        <View style={styles.selectedCategoriesContainer}>
+          <Text style={styles.selectedCategoriesTitle}>Selected Categories:</Text>
+          <View style={styles.selectedCategoriesTags}>
+            {selectedCategories.map((category) => (
+              <TouchableOpacity
+                key={category}
+                style={styles.categoryTag}
+                onPress={() => toggleCategory(category)}
+              >
+                <Text style={styles.categoryTagText}>{category}</Text>
+                <Text style={styles.categoryTagRemove}>×</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+      
       <Text style={styles.label}>Description</Text>
       <TextInput 
         style={[styles.input, styles.multiline]} 
@@ -305,6 +417,134 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#e0e0ff',
     marginTop: 8,
+  },
+  dropdown: {
+    backgroundColor: '#1a1a1e',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2b2b31',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  dropdownText: {
+    color: '#fff',
+    fontSize: 16,
+    flex: 1,
+  },
+  placeholderText: {
+    color: '#9aa0a6',
+  },
+  dropdownArrow: {
+    color: '#9aa0a6',
+    fontSize: 16,
+    marginLeft: 8,
+  },
+  dropdownList: {
+    backgroundColor: '#1a1a1e',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2b2b31',
+    marginTop: 4,
+    maxHeight: 250,
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  dropdownScrollView: {
+    maxHeight: 180,
+  },
+  dropdownHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2b2b31',
+    backgroundColor: '#2b2b31',
+  },
+  dropdownHeaderText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dropdownCloseButton: {
+    backgroundColor: '#0084ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  dropdownCloseText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dropdownItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#2b2b31',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 48,
+  },
+  dropdownItemSelected: {
+    backgroundColor: '#0084ff',
+  },
+  dropdownItemText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  dropdownItemTextSelected: {
+    fontWeight: '600',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  selectedCategoriesContainer: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  selectedCategoriesTitle: {
+    color: '#c9c9ce',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  selectedCategoriesTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  categoryTag: {
+    backgroundColor: '#0084ff',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  categoryTagText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  categoryTagRemove: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

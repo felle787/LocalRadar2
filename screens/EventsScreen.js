@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   View, 
   Text, 
@@ -7,7 +7,9 @@ import {
   Alert, 
   ScrollView,
   FlatList,
-  StyleSheet 
+  StyleSheet,
+  Animated,
+  Easing 
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,6 +22,10 @@ export default function EventsScreen() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Form collapse state
+  const [isFormExpanded, setIsFormExpanded] = useState(false);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  
   // Form fields for new event
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -27,6 +33,9 @@ export default function EventsScreen() {
   const [selectedTime, setSelectedTime] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [maxCapacity, setMaxCapacity] = useState('');
+  const [ticketPrice, setTicketPrice] = useState('');
+  const [isFreeEvent, setIsFreeEvent] = useState(true);
   
   // Format dates for display and storage
   const formatDate = (date) => {
@@ -48,6 +57,19 @@ export default function EventsScreen() {
   
   const formatDateISO = (date) => {
     return date.toISOString().split('T')[0];
+  };
+  
+  // Toggle form expansion with animation
+  const toggleForm = () => {
+    const toValue = isFormExpanded ? 0 : 1;
+    setIsFormExpanded(!isFormExpanded);
+    
+    Animated.timing(slideAnim, {
+      toValue,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
   };
 
   // Load existing events for this venue
@@ -101,6 +123,30 @@ export default function EventsScreen() {
       Alert.alert('Invalid Date', 'Event date and time cannot be in the past.');
       return;
     }
+    
+    // Validate capacity
+    if (maxCapacity.trim() && (isNaN(maxCapacity) || parseInt(maxCapacity) < 1)) {
+      Alert.alert('Invalid Capacity', 'Maximum capacity must be a positive number.');
+      return;
+    }
+    
+    // Validate price
+    if (!isFreeEvent && ticketPrice.trim() && (isNaN(ticketPrice) || parseFloat(ticketPrice) < 0)) {
+      Alert.alert('Invalid Price', 'Ticket price must be a valid number.');
+      return;
+    }
+    
+    // Validate capacity
+    if (maxCapacity.trim() && (isNaN(maxCapacity) || parseInt(maxCapacity) < 1)) {
+      Alert.alert('Invalid Capacity', 'Maximum capacity must be a positive number.');
+      return;
+    }
+    
+    // Validate price
+    if (!isFreeEvent && ticketPrice.trim() && (isNaN(ticketPrice) || parseFloat(ticketPrice) < 0)) {
+      Alert.alert('Invalid Price', 'Ticket price must be a valid number.');
+      return;
+    }
 
     try {
       setSaving(true);
@@ -127,6 +173,10 @@ export default function EventsScreen() {
         dateISO: formatDateISO(selectedDate),
         dateTime: eventDateTime.toISOString(),
         timestamp: eventDateTime.getTime(),
+        maxCapacity: maxCapacity.trim() ? parseInt(maxCapacity) : null,
+        isFree: isFreeEvent,
+        ticketPrice: isFreeEvent ? 0 : (ticketPrice.trim() ? parseFloat(ticketPrice) : 0),
+        currentAttendees: 0,
         venueId: currentUser.uid,
         venueName: venueData.name,
         venueAddress: venueData.address,
@@ -149,6 +199,18 @@ export default function EventsScreen() {
       setDescription('');
       setSelectedDate(new Date());
       setSelectedTime(new Date());
+      setMaxCapacity('');
+      setTicketPrice('');
+      setIsFreeEvent(true);
+      
+      // Collapse form after successful creation
+      toggleForm();
+      setMaxCapacity('');
+      setTicketPrice('');
+      setIsFreeEvent(true);
+      
+      // Collapse form after successful creation
+      toggleForm();
 
       Alert.alert('Success!', 'Your event has been posted!');
     } catch (error) {
@@ -202,7 +264,28 @@ export default function EventsScreen() {
       <ScrollView style={styles.content}>
         {/* Event Creation Form */}
         <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Create New Event</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Create New Event</Text>
+            <TouchableOpacity 
+              style={styles.toggleButton}
+              onPress={toggleForm}
+            >
+              <Text style={[styles.toggleIcon, { transform: [{ rotate: isFormExpanded ? '45deg' : '0deg' }] }]}>
+                +
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          <Animated.View style={[
+            styles.formContainer,
+            {
+              maxHeight: slideAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 800],
+              }),
+              opacity: slideAnim,
+            }
+          ]}>
           
           <Text style={styles.label}>Event Title</Text>
           <TextInput
@@ -269,6 +352,53 @@ export default function EventsScreen() {
               }}
             />
           )}
+          
+          {/* Capacity Section */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Maximum Capacity (Optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={maxCapacity}
+              onChangeText={setMaxCapacity}
+              placeholder="e.g. 50"
+              placeholderTextColor="#9aa0a6"
+              keyboardType="numeric"
+            />
+          </View>
+          
+          {/* Pricing Section */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Event Pricing</Text>
+            <View style={styles.pricingToggle}>
+              <TouchableOpacity
+                style={[styles.pricingOption, isFreeEvent && styles.pricingOptionActive]}
+                onPress={() => setIsFreeEvent(true)}
+              >
+                <Text style={[styles.pricingOptionText, isFreeEvent && styles.pricingOptionTextActive]}>
+                  Free Event
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.pricingOption, !isFreeEvent && styles.pricingOptionActive]}
+                onPress={() => setIsFreeEvent(false)}
+              >
+                <Text style={[styles.pricingOptionText, !isFreeEvent && styles.pricingOptionTextActive]}>
+                  Paid Event
+                </Text>
+              </TouchableOpacity>
+            </View>
+            
+            {!isFreeEvent && (
+              <TextInput
+                style={[styles.input, { marginTop: 8 }]}
+                value={ticketPrice}
+                onChangeText={setTicketPrice}
+                placeholder="Enter price (e.g. 150.00 DKK)"
+                placeholderTextColor="#9aa0a6"
+                keyboardType="decimal-pad"
+              />
+            )}
+          </View>
 
           <TouchableOpacity 
             style={[styles.button, saving && styles.buttonDisabled]} 
@@ -279,6 +409,7 @@ export default function EventsScreen() {
               {saving ? 'Posting...' : 'Post Event'}
             </Text>
           </TouchableOpacity>
+          </Animated.View>
         </View>
 
         {/* Existing Events */}
@@ -289,7 +420,18 @@ export default function EventsScreen() {
             events.map((event) => (
               <View key={event.id} style={styles.eventCard}>
                 <View style={styles.eventHeader}>
-                  <Text style={styles.eventTitle}>{event.title}</Text>
+                  <View style={styles.eventTitleContainer}>
+                    <Text style={styles.eventTitle}>{event.title}</Text>
+                    {event.isFree ? (
+                      <View style={styles.freeBadge}>
+                        <Text style={styles.freeBadgeText}>FREE</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.priceBadge}>
+                        <Text style={styles.priceBadgeText}>{event.ticketPrice} kr</Text>
+                      </View>
+                    )}
+                  </View>
                   <TouchableOpacity 
                     onPress={() => handleDeleteEvent(event.id)}
                     style={styles.deleteButton}
@@ -301,6 +443,11 @@ export default function EventsScreen() {
                 <Text style={styles.eventDate}>
                   {event.date}{event.time ? ` • ${event.time}` : ''}
                 </Text>
+                {event.maxCapacity && (
+                  <Text style={styles.capacityInfo}>
+                    Capacity: {event.currentAttendees || 0}/{event.maxCapacity}
+                  </Text>
+                )}
                 <Text style={styles.eventCreated}>
                   Posted: {new Date(event.createdAt).toLocaleDateString()}
                 </Text>
@@ -393,6 +540,59 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2b2b31',
+  },
+  toggleButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#0084ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  toggleIcon: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+    lineHeight: 20,
+  },
+  formContainer: {
+    overflow: 'hidden',
+    paddingHorizontal: 16,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  pricingToggle: {
+    flexDirection: 'row',
+    borderRadius: 10,
+    backgroundColor: '#2b2b31',
+    padding: 2,
+  },
+  pricingOption: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8,
+  },
+  pricingOptionActive: {
+    backgroundColor: '#0084ff',
+  },
+  pricingOptionText: {
+    color: '#9aa0a6',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  pricingOptionTextActive: {
+    color: '#fff',
+  },
   textArea: {
     textAlignVertical: 'top',
     minHeight: 80,
@@ -483,5 +683,39 @@ const styles = StyleSheet.create({
     color: '#9aa0a6',
     fontSize: 14,
     textAlign: 'center',
+  },
+  eventTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  freeBadge: {
+    backgroundColor: '#00c851',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  freeBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  priceBadge: {
+    backgroundColor: '#0084ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  priceBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  capacityInfo: {
+    color: '#9aa0a6',
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
   },
 });

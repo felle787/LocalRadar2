@@ -54,16 +54,21 @@ export const homeScreenStyles = StyleSheet.create({
     color: '#c9c9ce',
     marginBottom: 8,
   },
+  filterScrollView: {
+    marginBottom: 8,
+  },
   filterRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 8,
+    paddingHorizontal: 0,
   },
   filterButton: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
     backgroundColor: '#2b2b31',
+    marginRight: 8,
+    minWidth: 60,
   },
   filterButtonActive: {
     backgroundColor: '#0084ff',
@@ -127,6 +132,34 @@ export const homeScreenStyles = StyleSheet.create({
   eventTitle: { color: '#fff', fontSize: 15, fontWeight: '700', flex: 1 },
   eventDescription: { color: '#c9c9ce', fontSize: 13, lineHeight: 18, marginTop: 4 },
   eventDate: { color: '#007AFF', fontSize: 13, marginTop: 6, fontWeight: '500' },
+  freeBadge: {
+    backgroundColor: '#00c851',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  freeBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  priceBadge: {
+    backgroundColor: '#0084ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  priceBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  capacityInfo: {
+    color: '#9aa0a6',
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
+  },
 
   search: {
     backgroundColor: '#1a1a1e',
