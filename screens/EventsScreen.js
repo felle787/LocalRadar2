@@ -312,7 +312,10 @@ export default function EventsScreen() {
               <Text style={styles.label}>Event Date *</Text>
               <TouchableOpacity
                 style={styles.dateTimeButton}
-                onPress={() => setShowDatePicker(true)}
+                onPress={() => {
+                  setShowTimePicker(false);
+                  setShowDatePicker(true);
+                }}
               >
                 <Text style={styles.dateTimeText}>{formatDate(selectedDate)}</Text>
               </TouchableOpacity>
@@ -321,7 +324,10 @@ export default function EventsScreen() {
               <Text style={styles.label}>Event Time *</Text>
               <TouchableOpacity
                 style={styles.dateTimeButton}
-                onPress={() => setShowTimePicker(true)}
+                onPress={() => {
+                  setShowDatePicker(false);
+                  setShowTimePicker(true);
+                }}
               >
                 <Text style={styles.dateTimeText}>{formatTime(selectedTime)}</Text>
               </TouchableOpacity>
@@ -329,28 +335,48 @@ export default function EventsScreen() {
           </View>
           
           {showDatePicker && (
-            <DateTimePicker
-              value={selectedDate}
-              mode="date"
-              display="default"
-              minimumDate={new Date()}
-              onChange={(event, date) => {
-                setShowDatePicker(false);
-                if (date) setSelectedDate(date);
-              }}
-            />
+            <View style={styles.datePickerContainer}>
+              <DateTimePicker
+                value={selectedDate}
+                mode="date"
+                display="spinner"
+                minimumDate={new Date()}
+                onChange={(event, date) => {
+                  if (date) setSelectedDate(date);
+                }}
+                style={styles.datePicker}
+                textColor="#ffffff"
+                themeVariant="dark"
+              />
+              <TouchableOpacity
+                style={styles.doneButton}
+                onPress={() => setShowDatePicker(false)}
+              >
+                <Text style={styles.doneButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
           )}
           
           {showTimePicker && (
-            <DateTimePicker
-              value={selectedTime}
-              mode="time"
-              display="default"
-              onChange={(event, time) => {
-                setShowTimePicker(false);
-                if (time) setSelectedTime(time);
-              }}
-            />
+            <View style={styles.datePickerContainer}>
+              <DateTimePicker
+                value={selectedTime}
+                mode="time"
+                display="spinner"
+                onChange={(event, time) => {
+                  if (time) setSelectedTime(time);
+                }}
+                style={styles.datePicker}
+                textColor="#ffffff"
+                themeVariant="dark"
+              />
+              <TouchableOpacity
+                style={styles.doneButton}
+                onPress={() => setShowTimePicker(false)}
+              >
+                <Text style={styles.doneButtonText}>Done</Text>
+              </TouchableOpacity>
+            </View>
           )}
           
           {/* Capacity Section */}
@@ -539,6 +565,34 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '500',
+  },
+  datePickerContainer: {
+    backgroundColor: '#2a2a2e',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#3a3a3e',
+    marginTop: 8,
+    marginBottom: 12,
+    overflow: 'hidden',
+    padding: 8,
+  },
+  datePicker: {
+    backgroundColor: '#1a1a1e',
+    color: '#fff',
+  },
+  doneButton: {
+    backgroundColor: '#007AFF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 12,
+    marginHorizontal: 8,
+  },
+  doneButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   sectionHeader: {
     flexDirection: 'row',

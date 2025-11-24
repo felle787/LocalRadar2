@@ -26,7 +26,7 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
 // Category constants for filtering
 const PRIMARY_CATEGORIES = [
   'Bar', 'Restaurant', 'Pub', 'Club', 'Cafe', 'Brewery', 'Lounge', 
-  'Wine Bar', 'Cocktail Bar', 'Sports Bar', 'Rooftop Bar', 'Hotel Bar'
+  'Wine Bar', 'Cocktail Bar', 'Sports Bar', 'Rooftop Bar', 'Hotel Bar', 'Store'
 ];
 
 const ACTIVITY_CATEGORIES = [
@@ -37,7 +37,10 @@ const ACTIVITY_CATEGORIES = [
   'Private Events', 'Corporate Events', 'Birthday Parties', 'Live Band', 
   'Acoustic Music', 'Jazz Music', 'Rock Music', 'Electronic Music',
   'Food Specials', 'Brunch', 'Late Night', 'Themed Nights', 
-  'Student Discounts', 'Group Bookings', 'VIP Area', 'Smoking Area'
+  'Student Discounts', 'Group Bookings', 'VIP Area', 'Smoking Area',
+  'Clothes', 'Food & Groceries', 'Electronics', 'Books', 'Home & Garden',
+  'Beauty & Health', 'Sports & Fitness', 'Toys & Games', 'Outlet',
+  'Sale', 'Vintage', 'Handmade', 'Local Products', 'Organic', 'Tech Repair'
 ];
 
 export default function ExploreScreen({ navigation }) {
@@ -286,7 +289,7 @@ export default function ExploreScreen({ navigation }) {
     <SafeAreaView style={localStyles.container}>
       <View style={localStyles.header}>
         <Text style={localStyles.title}>Explore</Text>
-        <Text style={localStyles.subtitle}>Find venues near you</Text>
+        <Text style={localStyles.subtitle}>Discover local businesses</Text>
       </View>
 
       <View style={[styles.content, layout]}>

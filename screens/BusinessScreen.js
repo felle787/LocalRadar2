@@ -13,7 +13,7 @@ export default function BusinessScreen() {
   // Predefined categories
   const PRIMARY_CATEGORIES = [
     'Bar', 'Restaurant', 'Pub', 'Club', 'Cafe', 'Brewery', 'Lounge', 
-    'Wine Bar', 'Cocktail Bar', 'Sports Bar', 'Rooftop Bar', 'Hotel Bar'
+    'Wine Bar', 'Cocktail Bar', 'Sports Bar', 'Rooftop Bar', 'Hotel Bar', 'Store'
   ];
   
   const ACTIVITY_CATEGORIES = [
@@ -24,7 +24,10 @@ export default function BusinessScreen() {
     'Private Events', 'Corporate Events', 'Birthday Parties', 'Live Band', 
     'Acoustic Music', 'Jazz Music', 'Rock Music', 'Electronic Music',
     'Food Specials', 'Brunch', 'Late Night', 'Themed Nights', 
-    'Student Discounts', 'Group Bookings', 'VIP Area', 'Smoking Area'
+    'Student Discounts', 'Group Bookings', 'VIP Area', 'Smoking Area',
+    'Clothes', 'Food & Groceries', 'Electronics', 'Books', 'Home & Garden',
+    'Beauty & Health', 'Sports & Fitness', 'Toys & Games', 'Outlet',
+    'Sale', 'Vintage', 'Handmade', 'Local Products', 'Organic', 'Tech Repair'
   ];
 
   // Form fields with simple state management
@@ -72,7 +75,7 @@ export default function BusinessScreen() {
     }
 
     if (!name.trim()) {
-      Alert.alert('Missing Name', 'Please enter a venue name.');
+      Alert.alert('Missing Name', 'Please enter a business name.');
       return;
     }
 
@@ -131,14 +134,14 @@ export default function BusinessScreen() {
       if (coords) {
         Alert.alert('Success!', 'Your venue has been saved and will appear on the map for customers to find!');
       } else {
-        Alert.alert('Venue Saved', 'Your venue has been saved, but we couldn\'t determine its location. Add coordinates manually to make it appear on the map.');
+        Alert.alert('Business Saved', 'Your business has been saved, but we couldn\'t determine its location. Add coordinates manually to make it appear on the map.');
       }
     } catch (error) {
       console.error('Save error:', error);
       if (error.message.includes('timed out')) {
         Alert.alert('Connection Timeout', 'The save is taking too long. Please check your connection and try again.');
       } else {
-        Alert.alert('Error', 'Could not save venue. Please try again.');
+        Alert.alert('Error', 'Could not save business. Please try again.');
       }
     } finally {
       setSaving(false);
@@ -206,12 +209,12 @@ export default function BusinessScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>My Venue</Text>
+      <Text style={styles.title}>My Business</Text>
       <Text style={styles.subtitle}>
-        Add your venue details
+        Add your business details
       </Text>
 
-      <Text style={styles.label}>Venue Name</Text>
+      <Text style={styles.label}>Business Name</Text>
       <TextInput 
         style={styles.input} 
         value={name} 
@@ -233,7 +236,7 @@ export default function BusinessScreen() {
         selectTextOnFocus={true}
       />
 
-      <Text style={styles.label}>Venue Image</Text>
+      <Text style={styles.label}>Business Image</Text>
       <View style={styles.imageSection}>
         {venueImage ? (
           <View style={styles.imageContainer}>
@@ -255,7 +258,7 @@ export default function BusinessScreen() {
             disabled={imageUploading}
           >
             <Text style={styles.addImageText}>
-              {imageUploading ? 'Uploading...' : '+ Add Venue Image'}
+              {imageUploading ? 'Uploading...' : '+ Add Business Image'}
             </Text>
             <Text style={styles.addImageSubtext}>
               Recommended: 16:9 aspect ratio
@@ -395,7 +398,7 @@ export default function BusinessScreen() {
       />
 
       <TouchableOpacity style={[styles.button, saving && styles.buttonDisabled]} onPress={onSave} disabled={saving}>
-        <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save Venue'}</Text>
+        <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save Business'}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>

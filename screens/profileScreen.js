@@ -5,18 +5,23 @@ import {
   TouchableOpacity, 
   Alert, 
   ScrollView,
-  FlatList 
+  FlatList,
+  Switch 
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { database } from '../database/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { profileScreenStyles } from '../styles/profileScreenStyles';
+import NotificationService from '../services/NotificationService';
 
 export default function ProfileScreen({ navigation }) {
   const { currentUser, userProfile, logout } = useAuth();
   const [followedVenues, setFollowedVenues] = useState([]);
   const [favoriteVenues, setFavoriteVenues] = useState([]);
   const [totalVenues, setTotalVenues] = useState(0);
+  const [newEventNotifications, setNewEventNotifications] = useState(true);
+  const [dayBeforeReminders, setDayBeforeReminders] = useState(true);
+  const [eventDayReminders, setEventDayReminders] = useState(true);
 
   useEffect(() => {
     if (currentUser && userProfile) {
@@ -69,6 +74,52 @@ export default function ProfileScreen({ navigation }) {
       };
     }
   }, [currentUser, userProfile]);
+
+  // Load notification preferences when user profile is available
+  useEffect(() => {
+    if (currentUser && userProfile) {
+      loadNotificationPreferences();
+    }
+  }, [currentUser, userProfile]);
+
+  const loadNotificationPreferences = async () => {
+    try {
+      const preferencesRef = database.ref(`users/${currentUser.uid}/notificationPreferences`);
+      const snapshot = await preferencesRef.once('value');
+      if (snapshot.exists()) {
+        const prefs = snapshot.val();
+        setNewEventNotifications(prefs.newEventNotifications !== false); // default true
+        setDayBeforeReminders(prefs.dayBeforeReminders !== false); // default true
+        setEventDayReminders(prefs.eventDayReminders !== false); // default true
+      }
+    } catch (error) {
+      console.log('Error loading notification preferences:', error);
+    }
+  };
+
+  const updateNotificationPreference = async (type, value) => {
+    try {
+      await database.ref(`users/${currentUser.uid}/notificationPreferences/${type}`).set(value);
+      
+      // Update notification service with new preferences
+      const updatedPreferences = {
+        newEventNotifications: type === 'newEventNotifications' ? value : newEventNotifications,
+        dayBeforeReminders: type === 'dayBeforeReminders' ? value : dayBeforeReminders,
+        eventDayReminders: type === 'eventDayReminders' ? value : eventDayReminders
+      };
+      
+      await NotificationService.saveUserNotificationData(currentUser.uid, updatedPreferences);
+      
+      // If user enabled any reminder type, check for today's events
+      if ((type === 'eventDayReminders' || type === 'dayBeforeReminders') && value) {
+        await NotificationService.checkAndScheduleTodayEvents(currentUser.uid);
+      }
+      
+    } catch (error) {
+      console.error('Error updating notification preference:', error);
+      Alert.alert('Error', 'Failed to update notification preference');
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -127,6 +178,65 @@ export default function ProfileScreen({ navigation }) {
           <StatCard label="Following" value={stats.following} />
           <StatCard label="Favorites" value={stats.favorites} />
           <StatCard label="Total Venues" value={stats.events} />
+        </View>
+
+        {/* Notification Settings */}
+        <View style={profileScreenStyles.notificationSection}>
+          <Text style={profileScreenStyles.sectionTitle}>Notification Settings</Text>
+          
+          <View style={profileScreenStyles.notificationItem}>
+            <View style={profileScreenStyles.notificationTextContainer}>
+              <Text style={profileScreenStyles.notificationTitle}>New Event Alerts</Text>
+              <Text style={profileScreenStyles.notificationDescription}>
+                Get notified when businesses you follow post new events
+              </Text>
+            </View>
+            <Switch
+              value={newEventNotifications}
+              onValueChange={(value) => {
+                setNewEventNotifications(value);
+                updateNotificationPreference('newEventNotifications', value);
+              }}
+              trackColor={{ false: '#2b2b31', true: '#007AFF' }}
+              thumbColor={newEventNotifications ? '#fff' : '#8e8e93'}
+            />
+          </View>
+
+          <View style={profileScreenStyles.notificationItem}>
+            <View style={profileScreenStyles.notificationTextContainer}>
+              <Text style={profileScreenStyles.notificationTitle}>Day Before Reminders</Text>
+              <Text style={profileScreenStyles.notificationDescription}>
+                Get reminded 24 hours before events you're attending
+              </Text>
+            </View>
+            <Switch
+              value={dayBeforeReminders}
+              onValueChange={(value) => {
+                setDayBeforeReminders(value);
+                updateNotificationPreference('dayBeforeReminders', value);
+              }}
+              trackColor={{ false: '#2b2b31', true: '#007AFF' }}
+              thumbColor={dayBeforeReminders ? '#fff' : '#8e8e93'}
+            />
+          </View>
+
+          <View style={profileScreenStyles.notificationItem}>
+            <View style={profileScreenStyles.notificationTextContainer}>
+              <Text style={profileScreenStyles.notificationTitle}>Event Day Reminders</Text>
+              <Text style={profileScreenStyles.notificationDescription}>
+                Get reminded 2 hours before events start
+              </Text>
+            </View>
+            <Switch
+              value={eventDayReminders}
+              onValueChange={(value) => {
+                setEventDayReminders(value);
+                updateNotificationPreference('eventDayReminders', value);
+              }}
+              trackColor={{ false: '#2b2b31', true: '#007AFF' }}
+              thumbColor={eventDayReminders ? '#fff' : '#8e8e93'}
+            />
+          </View>
         </View>
 
         {/* Followed Venues */}

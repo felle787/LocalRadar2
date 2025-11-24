@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { database } from '../database/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import NotificationService from '../services/NotificationService';
 
 export default function EventDetailsScreen({ route, navigation }) {
   const { event } = route.params;
@@ -58,6 +59,11 @@ export default function EventDetailsScreen({ route, navigation }) {
         // Remove participation
         await participantRef.remove();
         await eventRef.child('currentAttendees').set(Math.max(0, participantCount - 1));
+        
+        // Remove from user's participations and cancel all reminders
+        await database.ref(`users/${currentUser.uid}/eventParticipations/${event.id}`).remove();
+        await NotificationService.cancelEventReminders(event.id);
+        
         setIsParticipating(false);
         setParticipantCount(prev => Math.max(0, prev - 1));
         Alert.alert('Success', 'You have been removed from this event.');
@@ -69,6 +75,24 @@ export default function EventDetailsScreen({ route, navigation }) {
           eventId: event.id,
         });
         await eventRef.child('currentAttendees').set(participantCount + 1);
+        
+        // Also save to user's event participations
+        await database.ref(`users/${currentUser.uid}/eventParticipations/${event.id}`).set(true);
+        
+        // Schedule notification reminders based on user preferences
+        const userPrefsSnapshot = await database.ref(`users/${currentUser.uid}/notificationPreferences`).once('value');
+        const userPrefs = userPrefsSnapshot.val() || {};
+        
+        // Schedule day-before reminder if enabled (default: true)
+        if (userPrefs.dayBeforeReminders !== false) {
+          await NotificationService.scheduleDayBeforeReminder(event);
+        }
+        
+        // Schedule event day reminder if enabled (default: true)  
+        if (userPrefs.eventDayReminders !== false) {
+          await NotificationService.scheduleEventDayReminder(event);
+        }
+        
         setIsParticipating(true);
         setParticipantCount(prev => prev + 1);
         Alert.alert('Success', 'You have successfully joined this event!');

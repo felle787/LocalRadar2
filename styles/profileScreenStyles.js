@@ -194,4 +194,35 @@ export const profileScreenStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+
+  // Notification Settings Styles
+  notificationSection: {
+    backgroundColor: '#121214',
+    borderRadius: 12,
+    marginBottom: 16,
+    padding: 16,
+  },
+  notificationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2b2b31',
+  },
+  notificationTextContainer: {
+    flex: 1,
+    marginRight: 16,
+  },
+  notificationTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 4,
+  },
+  notificationDescription: {
+    fontSize: 13,
+    color: '#8e8e93',
+    lineHeight: 18,
+  },
 });
