@@ -7,18 +7,21 @@ import {
   Alert, 
   ScrollView,
   FlatList,
-  StyleSheet,
+
   Animated,
   Easing 
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import styles from '../styles/EventsScreenStyles';
 import { database } from '../database/firebase';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function EventsScreen() {
   const { currentUser, logout } = useAuth();
   const [events, setEvents] = useState([]);
+  const [filteredEvents, setFilteredEvents] = useState([]);
+  const [eventFilter, setEventFilter] = useState('all');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -96,6 +99,28 @@ export default function EventsScreen() {
 
     return () => eventsRef.off('value', unsubscribe);
   }, [currentUser]);
+
+  // Apply filter whenever events or filter changes
+  useEffect(() => {
+    const now = new Date();
+    let filtered = [];
+
+    if (eventFilter === 'upcoming') {
+      filtered = events.filter(event => {
+        const eventDate = new Date(event.dateTime || event.createdAt);
+        return eventDate >= now;
+      });
+    } else if (eventFilter === 'past') {
+      filtered = events.filter(event => {
+        const eventDate = new Date(event.dateTime || event.createdAt);
+        return eventDate < now;
+      });
+    } else {
+      filtered = events;
+    }
+
+    setFilteredEvents(filtered);
+  }, [events, eventFilter]);
 
   const handlePostEvent = async () => {
     if (!currentUser) {
@@ -191,7 +216,8 @@ export default function EventsScreen() {
       // Also add to global events for homepage
       await database.ref(`globalEvents/${newEventRef.key}`).set({
         ...eventData,
-        eventId: newEventRef.key
+        eventId: newEventRef.key,
+        userId: currentUser.uid
       });
 
       // Clear form
@@ -244,21 +270,10 @@ export default function EventsScreen() {
     );
   };
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to log out');
-    }
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Events</Text>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content}>
@@ -276,13 +291,10 @@ export default function EventsScreen() {
             </TouchableOpacity>
           </View>
           
+          {isFormExpanded && (
           <Animated.View style={[
             styles.formContainer,
             {
-              maxHeight: slideAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 800],
-              }),
               opacity: slideAnim,
             }
           ]}>
@@ -291,9 +303,15 @@ export default function EventsScreen() {
           <TextInput
             style={styles.input}
             value={title}
-            onChangeText={setTitle}
+            onChangeText={(text) => {
+              console.log('Title input changed:', text);
+              setTitle(text);
+            }}
+            onFocus={() => console.log('Title input focused')}
+            onBlur={() => console.log('Title input blurred')}
             placeholder="e.g. Live Jazz Night"
             placeholderTextColor="#9aa0a6"
+            editable={true}
           />
 
           <Text style={styles.label}>Description</Text>
@@ -389,6 +407,8 @@ export default function EventsScreen() {
               placeholder="e.g. 50"
               placeholderTextColor="#9aa0a6"
               keyboardType="numeric"
+              returnKeyType="done"
+              blurOnSubmit={true}
             />
           </View>
           
@@ -436,14 +456,37 @@ export default function EventsScreen() {
             </Text>
           </TouchableOpacity>
           </Animated.View>
+          )}
         </View>
 
         {/* Existing Events */}
         <View style={styles.eventsSection}>
-          <Text style={styles.sectionTitle}>Your Events</Text>
+          <View style={styles.eventsSectionHeader}>
+            <Text style={styles.sectionTitle}>Your Events</Text>
+            <View style={styles.filterContainer}>
+              <TouchableOpacity
+                style={[styles.filterButton, eventFilter === 'all' && styles.filterButtonActive]}
+                onPress={() => setEventFilter('all')}
+              >
+                <Text style={[styles.filterButtonText, eventFilter === 'all' && styles.filterButtonTextActive]}>All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.filterButton, eventFilter === 'upcoming' && styles.filterButtonActive]}
+                onPress={() => setEventFilter('upcoming')}
+              >
+                <Text style={[styles.filterButtonText, eventFilter === 'upcoming' && styles.filterButtonTextActive]}>Upcoming</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.filterButton, eventFilter === 'past' && styles.filterButtonActive]}
+                onPress={() => setEventFilter('past')}
+              >
+                <Text style={[styles.filterButtonText, eventFilter === 'past' && styles.filterButtonTextActive]}>Past</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
           
-          {events.length > 0 ? (
-            events.map((event) => (
+          {filteredEvents.length > 0 ? (
+            filteredEvents.map((event) => (
               <View key={event.id} style={styles.eventCard}>
                 <View style={styles.eventHeader}>
                   <View style={styles.eventTitleContainer}>
@@ -469,11 +512,9 @@ export default function EventsScreen() {
                 <Text style={styles.eventDate}>
                   {event.date}{event.time ? ` • ${event.time}` : ''}
                 </Text>
-                {event.maxCapacity && (
-                  <Text style={styles.capacityInfo}>
-                    Capacity: {event.currentAttendees || 0}/{event.maxCapacity}
-                  </Text>
-                )}
+                <Text style={styles.capacityInfo}>
+                  Participants: {event.currentAttendees || 0}{event.maxCapacity ? `/${event.maxCapacity}` : ''}
+                </Text>
                 <Text style={styles.eventCreated}>
                   Posted: {new Date(event.createdAt).toLocaleDateString()}
                 </Text>
@@ -481,10 +522,21 @@ export default function EventsScreen() {
             ))
           ) : (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No events posted yet</Text>
-              <Text style={styles.emptySubtext}>
-                Create your first event to engage with customers!
+              <Text style={styles.emptyText}>
+                {events.length === 0 
+                  ? 'No events posted yet'
+                  : eventFilter === 'upcoming'
+                    ? 'No upcoming events'
+                    : eventFilter === 'past'
+                      ? 'No past events'
+                      : 'No events found'
+                }
               </Text>
+              {events.length === 0 && (
+                <Text style={styles.emptySubtext}>
+                  Create your first event to engage with customers!
+                </Text>
+              )}
             </View>
           )}
         </View>
@@ -493,283 +545,3 @@ export default function EventsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0b0b0c',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    paddingBottom: 0,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-  },
-  logoutButton: {
-    backgroundColor: '#FF3B30',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  logoutText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  formSection: {
-    marginBottom: 32,
-  },
-  eventsSection: {
-    marginBottom: 32,
-  },
-  sectionTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  label: {
-    color: '#c9c9ce',
-    fontWeight: '600',
-    marginTop: 12,
-    marginBottom: 6,
-  },
-  input: {
-    backgroundColor: '#1a1a1e',
-    color: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2b2b31',
-  },
-  dateTimeButton: {
-    backgroundColor: '#1a1a1e',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2b2b31',
-    alignItems: 'center',
-  },
-  dateTimeText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  datePickerContainer: {
-    backgroundColor: '#2a2a2e',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#3a3a3e',
-    marginTop: 8,
-    marginBottom: 12,
-    overflow: 'hidden',
-    padding: 8,
-  },
-  datePicker: {
-    backgroundColor: '#1a1a1e',
-    color: '#fff',
-  },
-  doneButton: {
-    backgroundColor: '#007AFF',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 12,
-    marginHorizontal: 8,
-  },
-  doneButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2b2b31',
-  },
-  toggleButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#0084ff',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  toggleIcon: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    lineHeight: 20,
-  },
-  formContainer: {
-    overflow: 'hidden',
-    paddingHorizontal: 16,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  pricingToggle: {
-    flexDirection: 'row',
-    borderRadius: 10,
-    backgroundColor: '#2b2b31',
-    padding: 2,
-  },
-  pricingOption: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  pricingOptionActive: {
-    backgroundColor: '#0084ff',
-  },
-  pricingOptionText: {
-    color: '#9aa0a6',
-    fontWeight: '600',
-    fontSize: 14,
-  },
-  pricingOptionTextActive: {
-    color: '#fff',
-  },
-  textArea: {
-    textAlignVertical: 'top',
-    minHeight: 80,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  col: {
-    flex: 1,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  eventCard: {
-    backgroundColor: '#1a1a1e',
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#2b2b31',
-    marginBottom: 12,
-  },
-  eventHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  eventTitle: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    flex: 1,
-  },
-  deleteButton: {
-    backgroundColor: '#FF3B30',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 12,
-  },
-  deleteButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  eventDescription: {
-    color: '#c9c9ce',
-    fontSize: 14,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  eventDate: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  eventCreated: {
-    color: '#9aa0a6',
-    fontSize: 12,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    color: '#c9c9ce',
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    color: '#9aa0a6',
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  eventTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  freeBadge: {
-    backgroundColor: '#00c851',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  freeBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  priceBadge: {
-    backgroundColor: '#0084ff',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  priceBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  capacityInfo: {
-    color: '#9aa0a6',
-    fontSize: 12,
-    marginTop: 4,
-    fontWeight: '500',
-  },
-});

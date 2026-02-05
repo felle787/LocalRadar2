@@ -5,13 +5,14 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  StyleSheet,
+
   SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { database } from '../database/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import NotificationService from '../services/NotificationService';
+import styles from '../styles/EventDetailsScreenStyles';
 
 export default function EventDetailsScreen({ route, navigation }) {
   const { event } = route.params;
@@ -25,6 +26,28 @@ export default function EventDetailsScreen({ route, navigation }) {
     if (currentUser) {
       checkParticipationStatus();
     }
+    
+    // Listen for real-time participant count updates
+    const eventRef = database.ref(`globalEvents/${event.id}`);
+    const unsubscribe = eventRef.on('value', (snapshot) => {
+      if (snapshot.exists()) {
+        const eventData = snapshot.val();
+        const count = eventData.currentAttendees || 0;
+        console.log(`EventDetailsScreen: participant count updated to ${count} for event ${event.id}`);
+        setParticipantCount(count);
+        
+        // Initialize currentAttendees field if it doesn't exist
+        if (eventData.currentAttendees === undefined) {
+          console.log('Initializing currentAttendees field to 0');
+          eventRef.child('currentAttendees').set(0);
+        }
+      } else {
+        console.log('EventDetailsScreen: event not found, setting count to 0');
+        setParticipantCount(0);
+      }
+    });
+    
+    return () => eventRef.off('value', unsubscribe);
   }, [currentUser, event.id]);
 
   const checkParticipationStatus = async () => {
@@ -49,54 +72,111 @@ export default function EventDetailsScreen({ route, navigation }) {
       return;
     }
 
-    setLoading(true);
-    
-    try {
-      const participantRef = database.ref(`eventParticipants/${event.id}/${currentUser.uid}`);
-      const eventRef = database.ref(`globalEvents/${event.id}`);
+    // If leaving the event, handle it directly
+    if (isParticipating) {
+      setLoading(true);
       
-      if (isParticipating) {
+      try {
+        const participantRef = database.ref(`eventParticipants/${event.id}/${currentUser.uid}`);
+        const eventRef = database.ref(`globalEvents/${event.id}`);
+        
+        console.log(`Leaving event ${event.id}, current count: ${participantCount}`);
+        
         // Remove participation
         await participantRef.remove();
-        await eventRef.child('currentAttendees').set(Math.max(0, participantCount - 1));
+        
+        // Get current count from database and update atomically
+        const currentCountSnapshot = await eventRef.child('currentAttendees').once('value');
+        const currentCount = currentCountSnapshot.val() || 0;
+        const newCount = Math.max(0, currentCount - 1);
+        
+        await eventRef.child('currentAttendees').set(newCount);
+        console.log(`Updated participant count from ${currentCount} to ${newCount}`);
         
         // Remove from user's participations and cancel all reminders
         await database.ref(`users/${currentUser.uid}/eventParticipations/${event.id}`).remove();
         await NotificationService.cancelEventReminders(event.id);
         
         setIsParticipating(false);
-        setParticipantCount(prev => Math.max(0, prev - 1));
+        setLoading(false);
         Alert.alert('Success', 'You have been removed from this event.');
-      } else {
-        // Add participation
-        await participantRef.set({
-          userId: currentUser.uid,
-          joinedAt: new Date().toISOString(),
-          eventId: event.id,
-        });
-        await eventRef.child('currentAttendees').set(participantCount + 1);
-        
-        // Also save to user's event participations
-        await database.ref(`users/${currentUser.uid}/eventParticipations/${event.id}`).set(true);
-        
-        // Schedule notification reminders based on user preferences
-        const userPrefsSnapshot = await database.ref(`users/${currentUser.uid}/notificationPreferences`).once('value');
-        const userPrefs = userPrefsSnapshot.val() || {};
-        
-        // Schedule day-before reminder if enabled (default: true)
-        if (userPrefs.dayBeforeReminders !== false) {
-          await NotificationService.scheduleDayBeforeReminder(event);
-        }
-        
-        // Schedule event day reminder if enabled (default: true)  
-        if (userPrefs.eventDayReminders !== false) {
-          await NotificationService.scheduleEventDayReminder(event);
-        }
-        
-        setIsParticipating(true);
-        setParticipantCount(prev => prev + 1);
-        Alert.alert('Success', 'You have successfully joined this event!');
+      } catch (error) {
+        setLoading(false);
+        console.error('Error leaving event:', error);
+        Alert.alert('Error', 'Failed to leave event. Please try again.');
       }
+      return;
+    }
+
+    // If joining a paid event, navigate to payment screen
+    if (event.ticketPrice && parseFloat(event.ticketPrice) > 0) {
+      navigation.navigate('Payment', {
+        event: event,
+        onPaymentSuccess: async () => {
+          // This function will be called after successful payment
+          await completeEventRegistration();
+        }
+      });
+      return;
+    }
+
+    // For free events, register directly
+    await completeEventRegistration();
+  };
+
+  const completeEventRegistration = async () => {
+    setLoading(true);
+    
+    try {
+      const participantRef = database.ref(`eventParticipants/${event.id}/${currentUser.uid}`);
+      const eventRef = database.ref(`globalEvents/${event.id}`);
+      
+      console.log(`Joining event ${event.id}, current count: ${participantCount}`);
+      
+      // Add participation
+      await participantRef.set({
+        userId: currentUser.uid,
+        joinedAt: new Date().toISOString(),
+        eventId: event.id,
+      });
+      
+      // Get current count from database and update atomically
+      const currentCountSnapshot = await eventRef.child('currentAttendees').once('value');
+      const currentCount = currentCountSnapshot.val() || 0;
+      const newCount = currentCount + 1;
+      
+      await eventRef.child('currentAttendees').set(newCount);
+      console.log(`Updated participant count from ${currentCount} to ${newCount}`);
+      
+      // Also save to user's event participations
+      await database.ref(`users/${currentUser.uid}/eventParticipations/${event.id}`).set(true);
+      
+      // Schedule notification reminders based on user preferences
+      const userPrefsSnapshot = await database.ref(`users/${currentUser.uid}/notificationPreferences`).once('value');
+      const userPrefs = userPrefsSnapshot.val() || {};
+      
+      // Schedule day-before reminder if enabled (default: true)
+      if (userPrefs.dayBeforeReminders !== false) {
+        console.log(`Scheduling day-before reminder for event on ${event.date || event.dateISO}`);
+        try {
+          await NotificationService.scheduleDayBeforeReminder(event);
+        } catch (error) {
+          console.log('Error scheduling day-before reminder:', error);
+        }
+      }
+      
+      // Schedule event day reminder if enabled (default: true)  
+      if (userPrefs.eventDayReminders !== false) {
+        console.log(`Scheduling event-day reminder for event on ${event.date || event.dateISO}`);
+        try {
+          await NotificationService.scheduleEventDayReminder(event);
+        } catch (error) {
+          console.log('Error scheduling event-day reminder:', error);
+        }
+      }
+      
+      setIsParticipating(true);
+      Alert.alert('Success', 'You have successfully joined this event!');
     } catch (error) {
       console.log('Error updating participation:', error);
       Alert.alert('Error', 'Failed to update participation. Please try again.');
@@ -262,179 +342,3 @@ export default function EventDetailsScreen({ route, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0b0b0c',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2b2b31',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#1a1a1e',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  titleSection: {
-    marginBottom: 24,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  eventTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-    flex: 1,
-    marginRight: 12,
-  },
-  freeBadge: {
-    backgroundColor: '#00c851',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  freeBadgeText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  priceBadge: {
-    backgroundColor: '#0084ff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  priceBadgeText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  venueInfo: {
-    color: '#0084ff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  addressText: {
-    color: '#9aa0a6',
-    fontSize: 14,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  dateTimeText: {
-    color: '#c9c9ce',
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  capacityContainer: {
-    gap: 8,
-  },
-  capacityText: {
-    color: '#c9c9ce',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  capacityBar: {
-    height: 8,
-    backgroundColor: '#2b2b31',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  capacityFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  fullEventText: {
-    color: '#ff6b6b',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  descriptionText: {
-    color: '#c9c9ce',
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  venueNameText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  venueAddressText: {
-    color: '#9aa0a6',
-    fontSize: 14,
-  },
-  buttonContainer: {
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#2b2b31',
-  },
-  participateButton: {
-    backgroundColor: '#0084ff',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  participatingButton: {
-    backgroundColor: '#2b2b31',
-  },
-  disabledButton: {
-    opacity: 0.6,
-  },
-  participateButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  participatingButtonText: {
-    color: '#ff6b6b',
-  },
-  pastEventNotice: {
-    backgroundColor: '#2b2b31',
-    paddingVertical: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  pastEventText: {
-    color: '#9aa0a6',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-});

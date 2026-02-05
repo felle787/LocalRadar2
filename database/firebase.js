@@ -2,6 +2,7 @@
 import firebase from 'firebase/compat/app';
 import 'firebase/compat/auth';
 import 'firebase/compat/database';
+import 'firebase/compat/storage';
 
 // Firebase configuration
 const firebaseConfig = {
@@ -22,6 +23,7 @@ if (!firebase.apps.length) {
 // Initialize Firebase services
 export const database = firebase.database();
 export const auth = firebase.auth();
+export const storage = firebase.storage();
 
 // Configure Realtime Database for better performance
 database.goOffline(); // Start offline

@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { database } from '../database/firebase';
 
-// Configure notification behavior
+// Global notification behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
@@ -14,265 +14,252 @@ Notifications.setNotificationHandler({
 });
 
 class NotificationService {
-  constructor() {
-    this.expoPushToken = null;
-    this.tokenRequested = false;
-  }
+  expoPushToken = null;
 
-  // Register for push notifications and get Expo push token
+  // --- PUSH TOKEN SETUP ------------------------------------------------------
+
   async registerForPushNotifications() {
-    // Return existing token if already requested
-    if (this.tokenRequested && this.expoPushToken) {
-      return this.expoPushToken;
-    }
-    
-    this.tokenRequested = true;
-    let token;
+    if (this.expoPushToken) return this.expoPushToken;
 
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'default',
         importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
       });
     }
 
-    if (Device.isDevice) {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        alert('Failed to get push token for push notification!');
-        return null;
-      }
-      
-      try {
-        // For development, we can use a fallback method
-        const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
-        
-        if (projectId) {
-          token = (await Notifications.getExpoPushTokenAsync({
-            projectId,
-          })).data;
-        } else {
-          // Development fallback - create a mock token for testing
-          token = `ExpoToken[DEV-${Platform.OS}-${Device.osName}-${Date.now()}]`;
-        }
-      } catch (e) {
-        token = `ExpoToken[FALLBACK-${Platform.OS}-${Device.osName}-${Date.now()}]`;
-      }
-    } else {
+    if (!Device.isDevice) {
       alert('Must use physical device for Push Notifications');
+      return null;
     }
 
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+
+    if (finalStatus !== 'granted') {
+      alert('Failed to get push token for push notification!');
+      return null;
+    }
+
+    let token;
+    try {
+      const projectId =
+        Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
+      
+      if (projectId) {
+        token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+      } else {
+        // Fallback for development - create a mock token
+        console.log('No project ID found, using development token');
+        token = `ExpoToken[DEV-${Platform.OS}-${Date.now()}]`;
+      }
+    } catch (error) {
+      console.log('Error getting push token, using fallback:', error);
+      token = `ExpoToken[FALLBACK-${Platform.OS}-${Date.now()}]`;
+    }
     this.expoPushToken = token;
     return token;
   }
 
-  // Save user's push token and notification preferences to Firebase
   async saveUserNotificationData(userId, preferences = {}) {
     try {
-      const token = this.expoPushToken || await this.registerForPushNotifications();
-      
+      const token = this.expoPushToken || (await this.registerForPushNotifications());
+      if (!token) return;
+
       await database.ref(`users/${userId}/notificationData`).set({
         pushToken: token,
         preferences: {
           newEventNotifications: preferences.newEventNotifications !== false,
           dayBeforeReminders: preferences.dayBeforeReminders !== false,
           eventDayReminders: preferences.eventDayReminders !== false,
-          ...preferences
+          ...preferences,
         },
-        lastUpdated: Date.now()
+        lastUpdated: Date.now(),
       });
-      
-
     } catch (error) {
       console.error('Error saving notification data:', error);
     }
   }
 
-  // Schedule a day-before event reminder
+  // --- HELPERS ---------------------------------------------------------------
+
+  parseEventDate(event) {
+    if (event.dateTime) return new Date(event.dateTime);
+    if (!event.date && !event.dateISO) return null;
+    if (!event.time) return null;
+
+    const dateStr = event.dateISO || event.date;
+    return new Date(`${dateStr}T${event.time}:00`);
+  }
+
+  // Schedule at a specific Date (or send now if in the past)
+  async scheduleAt(date, content) {
+    try {
+      // If date is null, send immediately
+      if (!date) {
+        console.log('Sending immediate notification');
+        await Notifications.scheduleNotificationAsync({
+          content,
+          trigger: null,
+        });
+        return;
+      }
+
+      if (isNaN(date.getTime())) return;
+
+      const now = new Date();
+      if (date <= now) {
+        // Just send immediately if the time has passed
+        console.log('Scheduled time has passed, sending immediately');
+        await Notifications.scheduleNotificationAsync({
+          content,
+          trigger: null,
+        });
+        return;
+      }
+
+      const seconds = Math.floor((date.getTime() - now.getTime()) / 1000);
+      console.log(`Scheduling notification in ${seconds} seconds`);
+      await Notifications.scheduleNotificationAsync({
+        content,
+        trigger: { seconds },
+      });
+    } catch (error) {
+      console.error('Error scheduling notification:', error);
+    }
+  }
+
+  // --- NOTIFICATIONS ---------------------------------------------------------
+
+  async scheduleSignupNotification(event) {
+    await this.scheduleAt(null, {
+      title: 'Event Signup Confirmed! ✅',
+      body: `You're signed up for ${event.title || event.name} at ${event.venueName}`,
+      data: { eventId: event.id, type: 'signup_confirmation' },
+    });
+  }
+
+  // Day-before reminder
   async scheduleDayBeforeReminder(event) {
-    try {
-      // Parse the event date and time - use dateISO for reliable parsing
-      const dateString = event.dateISO || event.date;
-      const [hours, minutes] = event.time.split(':').map(Number);
-      
-      // Create event datetime in Danish timezone
-      const eventDate = new Date(dateString + 'T' + event.time + ':00');
-      
-      // Check if event is tomorrow or later (not today)
-      const today = new Date();
-      const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-      const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      
-      // Schedule day-before reminder if event is tomorrow or later
-      if (eventDateOnly > todayDateOnly) {
-        // Set notification for 9:00 AM the day before the event
-        const dayBefore = new Date(eventDate);
-        dayBefore.setDate(dayBefore.getDate() - 1); // Go back one day
-        dayBefore.setHours(9, 0, 0, 0); // Set to 9:00 AM
-        
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Event Tomorrow! 📅",
-            body: `Don't forget: ${event.title || event.name} is tomorrow at ${event.time} at ${event.venueName}`,
-            data: {
-              eventId: event.id,
-              type: 'day_before_reminder'
-            },
-          },
-          trigger: {
-            date: dayBefore,
-          },
-        });
-      }
-    } catch (error) {
-      console.error('Error scheduling day-before reminder:', error);
+    const eventDate = this.parseEventDate(event);
+    if (!eventDate) {
+      console.log('No event date found for day-before reminder');
+      return;
     }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    console.log(`Day-before check: Today=${today.toDateString()}, Event=${eventDay.toDateString()}, Tomorrow=${tomorrow.toDateString()}`);
+
+    // Only schedule if event is tomorrow
+    if (eventDay.getTime() !== tomorrow.getTime()) {
+      console.log('Event is not tomorrow, skipping day-before reminder');
+      return;
+    }
+
+    console.log('Sending immediate day-before reminder for tomorrow event');
+    await this.scheduleAt(null, {
+      title: 'Event Reminder! 📅',
+      body: `Don't forget: ${event.title || event.name} tomorrow at ${event.time} at ${event.venueName}`,
+      data: { eventId: event.id, type: 'day_before_reminder' },
+    });
   }
 
-  // Schedule a 2-hour before event reminder
+  // 2 hours before event (only on event day)
   async scheduleEventDayReminder(event) {
-    try {
-      // Parse the event date and time - use dateISO for reliable parsing
-      const dateString = event.dateISO || event.date;
-      const [hours, minutes] = event.time.split(':').map(Number);
-      
-      // Create event datetime in Danish timezone
-      const eventDate = new Date(dateString + 'T' + event.time + ':00');
-      
-      // Calculate current time and event time difference
-      const currentTime = new Date();
-      const timeDifferenceMs = eventDate.getTime() - currentTime.getTime();
-      const timeDifferenceHours = timeDifferenceMs / (1000 * 60 * 60);
-      
-      // Check if event is today (same date)
-      const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-      const todayDateOnly = new Date(currentTime.getFullYear(), currentTime.getMonth(), currentTime.getDate());
-      const isEventToday = eventDateOnly.getTime() === todayDateOnly.getTime();
-      
-      // Only schedule 2-hour reminder if event is TODAY and more than 2 hours away
-      if (isEventToday && timeDifferenceHours > 2) {
-        // Calculate 2 hours before
-        const twoHoursBeforeDate = new Date(eventDate.getTime() - 2 * 60 * 60 * 1000);
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Event Starting Soon! 🎉",
-            body: `${event.title || event.name} starts in 2 hours at ${event.venueName}`,
-            data: {
-              eventId: event.id,
-              type: 'event_day_reminder'
-            },
-          },
-          trigger: {
-            date: twoHoursBeforeDate,
-          },
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error scheduling event-day reminder:', error);
-    }
+    const eventDate = this.parseEventDate(event);
+    if (!eventDate) return;
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+
+    // Only schedule if event is today
+    if (eventDay.getTime() !== today.getTime()) return;
+
+    // Check if event is at least 2 hours away (with 5 min buffer)
+    const hoursUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+    if (hoursUntilEvent < 1.92) return; // Need at least 1h 55m to schedule 2h reminder
+
+    const trigger = new Date(eventDate.getTime() - 2 * 60 * 60 * 1000);
+
+    await this.scheduleAt(trigger, {
+      title: 'Event Starting Soon! 🎉',
+      body: `${event.title || event.name} starts in 2 hours at ${event.venueName}`,
+      data: { eventId: event.id, type: 'event_day_reminder' },
+    });
   }
 
-  // Cancel scheduled notifications for an event
+  // Cancel all reminders for a given event
   async cancelEventReminders(eventId) {
     try {
-      const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      
-      for (const notification of scheduledNotifications) {
-        if (notification.content.data?.eventId === eventId) {
-          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-
-        }
-      }
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      await Promise.all(
+        scheduled
+          .filter((n) => n.content.data?.eventId === eventId)
+          .map((n) => Notifications.cancelScheduledNotificationAsync(n.identifier))
+      );
     } catch (error) {
       console.error('Error cancelling notifications:', error);
     }
   }
 
-  // Check for events and schedule all appropriate reminders
-  async checkAndScheduleTodayEvents(userId) {
+  // Schedule for all events a user participates in
+  async scheduleUserNotifications(userId, preferences = {}) {
     try {
-      // Get user's notification preferences
-      const preferencesRef = database.ref(`users/${userId}/notificationPreferences`);
-      const preferencesSnapshot = await preferencesRef.once('value');
-      const preferences = preferencesSnapshot.val() || {};
-      
-      // Get user's event participations
-      const participationsRef = database.ref(`users/${userId}/eventParticipations`);
-      const participationsSnapshot = await participationsRef.once('value');
-      
-      if (!participationsSnapshot.exists()) return;
-      
-      const participations = participationsSnapshot.val();
-      
-      // Check each event the user is participating in
-      for (const eventId of Object.keys(participations)) {
-        const eventRef = database.ref(`events/${eventId}`);
-        const eventSnapshot = await eventRef.once('value');
+      const snap = await database.ref(`users/${userId}/eventParticipations`).once('value');
+      if (!snap.exists()) return;
+
+      const participations = snap.val();
+      const eventIds = Object.keys(participations);
+
+      for (const eventId of eventIds) {
+        // Clear existing notifications for this event first
+        await this.cancelEventReminders(eventId);
         
-        if (eventSnapshot.exists()) {
-          const event = eventSnapshot.val();
-          const eventWithId = { id: eventId, ...event };
-          
-          // Schedule day-before reminder if enabled
-          if (preferences.dayBeforeReminders !== false) {
-            await this.scheduleDayBeforeReminder(eventWithId);
-          }
-          
-          // Schedule event day reminder if enabled
-          if (preferences.eventDayReminders !== false) {
-            await this.scheduleEventDayReminder(eventWithId);
-          }
+        // Try both locations for events
+        let eventSnap = await database.ref(`events/${eventId}`).once('value');
+        if (!eventSnap.exists()) {
+          eventSnap = await database.ref(`globalEvents/${eventId}`).once('value');
+        }
+        if (!eventSnap.exists()) continue;
+
+        const event = { id: eventId, ...eventSnap.val() };
+
+        if (preferences.dayBeforeReminders !== false) {
+          await this.scheduleDayBeforeReminder(event);
+        }
+        if (preferences.eventDayReminders !== false) {
+          await this.scheduleEventDayReminder(event);
         }
       }
     } catch (error) {
-      console.error('Error checking and scheduling events:', error);
+      console.error('Error scheduling user notifications:', error);
     }
   }
 
-  // Send push notification to users following a venue (would be called from a backend)
-  async sendNewEventNotification(venueId, event) {
-    try {
-      // In a real app, this would be called from your backend server
-      // Here's how you would structure the data to send to your notification server
-      
-      const notificationData = {
-        venueId: venueId,
-        event: event,
-        title: "New Event Posted! 🎪",
-        body: `${event.venueName} just posted: ${event.name}`,
-        data: {
-          eventId: event.id,
-          venueId: venueId,
-          type: 'new_event'
-        }
-      };
-      
-
-      
-      // In production, you would send this to your backend server
-      // which would then send push notifications to all users following this venue
-      
-      return notificationData;
-    } catch (error) {
-      console.error('Error preparing new event notification:', error);
-    }
+  // This would normally be done on backend
+  sendNewEventNotification(event) {
+    return {
+      title: 'New Event Posted! 🎪',
+      body: `${event.venueName} just posted: ${event.title || event.name}`,
+      data: { eventId: event.id, type: 'new_event' },
+    };
   }
 
-  // Add notification listener
   addNotificationReceivedListener(callback) {
     return Notifications.addNotificationReceivedListener(callback);
   }
 
-  // Add notification response listener (when user taps notification)
   addNotificationResponseReceivedListener(callback) {
     return Notifications.addNotificationResponseReceivedListener(callback);
   }

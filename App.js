@@ -6,14 +6,19 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { StripeProvider } from '@stripe/stripe-react-native';
 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { STRIPE_CONFIG } from './config/stripe';
 import HomeScreen from './screens/homeScreen';
 import ExploreScreen from './screens/exploreScreen';
 import ProfileScreen from './screens/profileScreen';
 import BusinessScreen from './screens/BusinessScreen';
+import BusinessDetailsScreen from './screens/BusinessDetailsScreen';
+import BusinessPostWallScreen from './screens/BusinessPostWallScreen';
 import EventsScreen from './screens/EventsScreen';
 import EventDetailsScreen from './screens/EventDetailsScreen';
+import PaymentScreen from './screens/PaymentScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 
@@ -34,6 +39,8 @@ function HomeStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="HomeMain" component={HomeScreen} />
       <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
+      <Stack.Screen name="BusinessPostWall" component={BusinessPostWallScreen} />
+      <Stack.Screen name="Payment" component={PaymentScreen} />
     </Stack.Navigator>
   );
 }
@@ -43,6 +50,8 @@ function ExploreStack() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="ExploreMain" component={ExploreScreen} />
       <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
+      <Stack.Screen name="Business" component={BusinessDetailsScreen} />
+      <Stack.Screen name="Payment" component={PaymentScreen} />
     </Stack.Navigator>
   );
 }
@@ -69,9 +78,9 @@ function CustomerTabs() {
         tabBarStyle: {
           backgroundColor: '#1a1a1e',
           borderTopColor: '#2b2b31',
-          paddingBottom: 5,
+          paddingBottom: 25,
           paddingTop: 5,
-          height: 60,
+          height: 85,
         },
         headerShown: false,
       })}
@@ -94,6 +103,8 @@ function BusinessTabs() {
             iconName = focused ? 'business' : 'business-outline';
           } else if (route.name === 'Events') {
             iconName = focused ? 'calendar' : 'calendar-outline';
+          } else if (route.name === 'Posts') {
+            iconName = focused ? 'images' : 'images-outline';
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -103,6 +114,9 @@ function BusinessTabs() {
         tabBarStyle: {
           backgroundColor: '#121214',
           borderTopColor: '#1f1f22',
+          paddingBottom: 25,
+          paddingTop: 5,
+          height: 85,
         },
         headerShown: false,
       })}
@@ -116,6 +130,11 @@ function BusinessTabs() {
         name="Events"
         component={EventsScreen}
         options={{ title: 'Events' }}
+      />
+      <Tab.Screen
+        name="Posts"
+        component={BusinessPostWallScreen}
+        options={{ title: 'Posts' }}
       />
     </Tab.Navigator>
   );
@@ -171,8 +190,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <StripeProvider publishableKey={STRIPE_CONFIG.publishableKey}>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </StripeProvider>
   );
 }

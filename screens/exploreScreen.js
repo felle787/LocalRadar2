@@ -53,14 +53,21 @@ export default function ExploreScreen({ navigation }) {
   const [loading, setLoading] = useState(true); // state til at vise om brugerens lokation stadig hentes
   const [venues, setVenues] = useState([]); // state til at holde styr på venues fra Firestore
   const [filteredVenues, setFilteredVenues] = useState([]); // filtered venue list
+  const [events, setEvents] = useState([]); // state for events
+  const [filteredEvents, setFilteredEvents] = useState([]); // filtered events list
   const [userLocation, setUserLocation] = useState(null); // store user's location for distance calculations
+  
+  // View toggle state
+  const [viewMode, setViewMode] = useState('businesses'); // 'businesses' or 'events'
   
   // Filter states
   const [distanceInput, setDistanceInput] = useState('');
   const [selectedDistance, setSelectedDistance] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedDateFilter, setSelectedDateFilter] = useState('all'); // 'all', 'today', 'tomorrow', 'this_week'
   const [showDistanceFilter, setShowDistanceFilter] = useState(false);
   const [showCategoryFilter, setShowCategoryFilter] = useState(false);
+  const [showDateFilter, setShowDateFilter] = useState(false);
 
   // henter brugerens lokation når komponenten bliver loadet
   useEffect(() => {
@@ -123,6 +130,7 @@ export default function ExploreScreen({ navigation }) {
               type: data.type,
               categories: data.categories || [],
               description: data.description,
+              imageUrl: data.imageUrl,
               latitude: data.coordinates.latitude,
               longitude: data.coordinates.longitude,
             };
@@ -156,7 +164,152 @@ export default function ExploreScreen({ navigation }) {
     });
 
     return () => venuesRef.off('value', unsubscribe);
-  }, [userLocation]);
+  }, []);
+
+  // Fetch events from global events
+  useEffect(() => {
+    const eventsRef = database.ref('globalEvents');
+    
+    const unsubscribe = eventsRef.on('value', async (snapshot) => {
+      const eventsData = [];
+      if (snapshot.exists()) {
+        const events = snapshot.val();
+        console.log('Global events structure:', Object.keys(events).length, 'events found');
+        
+        for (const [eventId, eventInfo] of Object.entries(events)) {
+          try {
+            // Try to get userId from eventInfo or use venueId as fallback
+            let userId = eventInfo.userId || eventInfo.venueId;
+            if (!userId) {
+              console.log('No userId or venueId found in eventInfo for event:', eventId);
+              continue;
+            }
+            
+            // Fetch the actual event data
+            const eventSnapshot = await database.ref(`events/${userId}/${eventId}`).once('value');
+            if (eventSnapshot.exists()) {
+              const eventData = eventSnapshot.val();
+              
+              // Fetch venue data for location
+              const venueSnapshot = await database.ref(`venues/${userId}`).once('value');
+              if (venueSnapshot.exists()) {
+                const venueData = venueSnapshot.val();
+                
+                if (venueData.coordinates && venueData.coordinates.latitude && venueData.coordinates.longitude) {
+                  const event = {
+                    id: eventId,
+                    ...eventData,
+                    venueId: userId,
+                    venueName: venueData.name,
+                    venueAddress: venueData.address,
+                    latitude: venueData.coordinates.latitude,
+                    longitude: venueData.coordinates.longitude,
+                  };
+                  
+                  // Calculate distance if user location is available
+                  if (userLocation) {
+                    event.distance = calculateDistance(
+                      userLocation.latitude,
+                      userLocation.longitude,
+                      event.latitude,
+                      event.longitude
+                    );
+                    event.distanceText = event.distance < 1 
+                      ? `${Math.round(event.distance * 1000)}m`
+                      : `${event.distance.toFixed(1)}km`;
+                  }
+                  
+                  eventsData.push(event);
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching event data:', error);
+          }
+        }
+        
+        // Sort events by date (soonest first)
+        eventsData.sort((a, b) => {
+          try {
+            const dateA = new Date(a.dateTime || a.timestamp || a.date || 0);
+            const dateB = new Date(b.dateTime || b.timestamp || b.date || 0);
+            
+            // Handle invalid dates by pushing them to the end
+            const isValidA = !isNaN(dateA.getTime());
+            const isValidB = !isNaN(dateB.getTime());
+            
+            if (!isValidA && !isValidB) return 0;
+            if (!isValidA) return 1;
+            if (!isValidB) return -1;
+            
+            return dateA - dateB;
+          } catch (error) {
+            console.log('Error sorting events by date:', error);
+            return 0;
+          }
+        });
+        
+
+        setEvents(eventsData);
+        // Apply initial filtering
+        if (eventsData.length > 0) {
+          // We need to call the filter function directly with the new data
+          // since the state hasn't updated yet
+          let filtered = [...eventsData];
+          
+          // Filter out expired events (always apply this filter)
+          const now = new Date();
+          filtered = filtered.filter(event => {
+            const eventDate = new Date(event.dateTime || event.timestamp);
+            return eventDate >= now; // Only show future events
+          });
+          
+          // Distance filter
+          if (selectedDistance && userLocation) {
+            filtered = filtered.filter(event => {
+              const hasDistance = event.distance !== undefined && event.distance !== null;
+              const withinRange = hasDistance && event.distance <= selectedDistance;
+              return withinRange;
+            });
+          }
+          
+          // Date filter
+          if (selectedDateFilter && selectedDateFilter !== 'all') {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const weekFromNow = new Date(today);
+            weekFromNow.setDate(weekFromNow.getDate() + 7);
+            
+            filtered = filtered.filter(event => {
+              const eventDate = new Date(event.dateTime || event.timestamp);
+              const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+              
+              switch (selectedDateFilter) {
+                case 'today':
+                  return eventDay.getTime() === today.getTime();
+                case 'tomorrow':
+                  return eventDay.getTime() === tomorrow.getTime();
+                case 'this_week':
+                  return eventDate >= now && eventDate <= weekFromNow;
+                default:
+                  return true;
+              }
+            });
+          }
+          
+
+          setFilteredEvents(filtered);
+        }
+      } else {
+        console.log('No events found in globalEvents');
+        setEvents([]);
+      }
+    });
+    
+    return () => eventsRef.off('value', unsubscribe);
+  }, []);
   
   // Apply filters to venue list
   const applyFilters = (venueList = venues) => {
@@ -185,8 +338,77 @@ export default function ExploreScreen({ navigation }) {
       });
     }
     
-    console.log(`Filtered venues: ${filtered.length} of ${venueList.length}`);
+
     setFilteredVenues(filtered);
+  };
+
+  // Apply filters to events list
+  const applyEventsFilters = (eventList = events) => {
+    let filtered = [...eventList];
+    
+    // Distance filter
+    if (selectedDistance && userLocation) {
+      filtered = filtered.filter(event => {
+        const hasDistance = event.distance !== undefined && event.distance !== null;
+        const withinRange = hasDistance && event.distance <= selectedDistance;
+        return withinRange;
+      });
+    }
+    
+    // Filter out expired events (always apply this filter)
+    const now = new Date();
+    filtered = filtered.filter(event => {
+      try {
+        const dateSource = event.dateTime || event.timestamp || event.date;
+        if (!dateSource) return false; // No date information
+        
+        const eventDate = new Date(dateSource);
+        if (isNaN(eventDate.getTime())) return false; // Invalid date
+        
+        return eventDate >= now; // Only show future events
+      } catch (error) {
+        console.log('Error filtering expired events for event:', event.id, error);
+        return false; // Exclude events with date parsing errors
+      }
+    });
+    
+    // Date filter
+    if (selectedDateFilter && selectedDateFilter !== 'all') {
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const weekFromNow = new Date(today);
+      weekFromNow.setDate(weekFromNow.getDate() + 7);
+      
+      filtered = filtered.filter(event => {
+        try {
+          const dateSource = event.dateTime || event.timestamp || event.date;
+          if (!dateSource) return false;
+          
+          const eventDate = new Date(dateSource);
+          if (isNaN(eventDate.getTime())) return false;
+          
+          const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+          
+          switch (selectedDateFilter) {
+            case 'today':
+              return eventDay.getTime() === today.getTime();
+            case 'tomorrow':
+              return eventDay.getTime() === tomorrow.getTime();
+            case 'this_week':
+              return eventDate >= now && eventDate <= weekFromNow;
+            default:
+              return true;
+          }
+        } catch (error) {
+          console.log('Error filtering events by date for event:', event.id, error);
+          return false;
+        }
+      });
+    }
+    
+
+    setFilteredEvents(filtered);
   };
   
   // Update filters when selections change
@@ -194,7 +416,23 @@ export default function ExploreScreen({ navigation }) {
     if (venues.length > 0) {
       applyFilters();
     }
-  }, [selectedDistance, selectedCategory, venues, userLocation]);
+  }, [selectedDistance, selectedCategory, venues]);
+
+  // Separate useEffect for location-based updates
+  useEffect(() => {
+    if (venues.length > 0 && userLocation) {
+      applyFilters();
+    }
+    if (events.length > 0 && userLocation) {
+      applyEventsFilters();
+    }
+  }, [userLocation]);
+  
+  useEffect(() => {
+    if (events.length > 0) {
+      applyEventsFilters();
+    }
+  }, [selectedDistance, selectedDateFilter, events]);
   
   // Clear category filter
   const clearCategoryFilter = () => {
@@ -271,11 +509,9 @@ export default function ExploreScreen({ navigation }) {
       if (isFollowing) {
         // Unfollow venue
         updatedFollowed = userProfile.followedVenues.filter(id => id !== venue.id);
-        Alert.alert('Unfollowed', `You unfollowed ${venue.name}`);
       } else {
         // Follow venue
         updatedFollowed = [...(userProfile.followedVenues || []), venue.id];
-        Alert.alert('Following', `You are now following ${venue.name}!`);
       }
 
       await database.ref(`users/${currentUser.uid}/followedVenues`).set(updatedFollowed);
@@ -286,19 +522,49 @@ export default function ExploreScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={localStyles.container}>
-      <View style={localStyles.header}>
-        <Text style={localStyles.title}>Explore</Text>
-        <Text style={localStyles.subtitle}>Discover local businesses</Text>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Explore</Text>
+        <Text style={styles.subtitle}>Discover local {viewMode === 'businesses' ? 'businesses' : 'events'}</Text>
+        
+        {/* View Toggle */}
+        <View style={styles.viewToggle}>
+          <TouchableOpacity
+            style={[styles.toggleButton, viewMode === 'businesses' && styles.toggleButtonActive]}
+            onPress={() => {
+              setViewMode('businesses');
+              // Close all dropdowns when switching modes
+              setShowDateFilter(false);
+              setShowDistanceFilter(false);
+            }}
+          >
+            <Text style={[styles.toggleButtonText, viewMode === 'businesses' && styles.toggleButtonTextActive]}>
+              Businesses
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleButton, viewMode === 'events' && styles.toggleButtonActive]}
+            onPress={() => {
+              setViewMode('events');
+              // Close all dropdowns when switching modes
+              setShowCategoryFilter(false);
+              setShowDistanceFilter(false);
+            }}
+          >
+            <Text style={[styles.toggleButtonText, viewMode === 'events' && styles.toggleButtonTextActive]}>
+              Events
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={[styles.content, layout]}>
         {/* Map */}
         <View style={[styles.section, styles.mapWrap]}>
           {loading || !region ? (
-            <View style={localStyles.loadingContainer}>
+            <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#007AFF" />
-              <Text style={localStyles.loadingText}>Finding your location...</Text>
+              <Text style={styles.loadingText}>Finding your location...</Text>
             </View>
           ) : (
             <MapView
@@ -307,28 +573,41 @@ export default function ExploreScreen({ navigation }) {
               style={StyleSheet.absoluteFill}
               initialRegion={region}
             >
-              {venues.map((venue) => (
-                <Marker
-                  key={venue.id}
-                  coordinate={{ latitude: venue.latitude, longitude: venue.longitude }}
-                  title={venue.name}
-                  description={`${venue.type} • ${venue.location || venue.address}`}
-                />
-              ))}
+              {viewMode === 'businesses' ? 
+                filteredVenues.map((venue) => (
+                  <Marker
+                    key={venue.id}
+                    coordinate={{ latitude: venue.latitude, longitude: venue.longitude }}
+                    title={venue.name}
+                    description={`${venue.type} • ${venue.location || venue.address}`}
+                    onPress={() => navigation.navigate('Business', { venue })}
+                  />
+                )) :
+                filteredEvents.map((event) => (
+                  <Marker
+                    key={event.id}
+                    coordinate={{ latitude: event.latitude, longitude: event.longitude }}
+                    title={event.title || event.name}
+                    description={`${event.venueName} • ${new Date(event.dateTime || event.timestamp).toLocaleDateString()}`}
+                    pinColor="#FF6B6B"
+                    onPress={() => navigation.navigate('EventDetails', { event })}
+                  />
+                ))
+              }
             </MapView>
           )}
         </View>
 
         {/* Filter Controls */}
-        <View style={localStyles.filterContainer}>
-          <View style={localStyles.filterRow}>
-            <Text style={localStyles.filterTitle}>Filters:</Text>
+        <View style={styles.filterContainer}>
+          <View style={styles.filterRow}>
+            <Text style={styles.filterTitle}>Filters:</Text>
             
             {/* Distance Filter */}
-            <View style={localStyles.distanceInputContainer}>
-              <Text style={localStyles.distanceLabel}>Within:</Text>
+            <View style={styles.distanceInputContainer}>
+              <Text style={styles.distanceLabel}>Within:</Text>
               <TextInput
-                style={localStyles.distanceInput}
+                style={styles.distanceInput}
                 value={distanceInput}
                 onChangeText={handleDistanceInput}
                 placeholder="km"
@@ -342,55 +621,76 @@ export default function ExploreScreen({ navigation }) {
               />
               {distanceInput.length > 0 && (
                 <TouchableOpacity 
-                  style={localStyles.doneButton}
+                  style={styles.doneButton}
                   onPress={() => Keyboard.dismiss()}
                 >
-                  <Text style={localStyles.doneButtonText}>Done</Text>
+                  <Text style={styles.doneButtonText}>Done</Text>
                 </TouchableOpacity>
               )}
             </View>
             
-            {/* Category Filter */}
-            <TouchableOpacity 
-              style={[localStyles.filterButton, selectedCategory && localStyles.filterButtonActive]}
-              onPress={toggleCategoryFilter}
-            >
-              <Text style={[localStyles.filterButtonText, selectedCategory && localStyles.filterButtonTextActive]}>
-                {selectedCategory || 'Category'}
-              </Text>
-              <Text style={localStyles.filterArrow}>{showCategoryFilter ? '▲' : '▼'}</Text>
-            </TouchableOpacity>
+            {viewMode === 'businesses' ? (
+              /* Category Filter for businesses */
+              <TouchableOpacity 
+                style={[styles.filterButton, selectedCategory && styles.filterButtonActive]}
+                onPress={toggleCategoryFilter}
+              >
+                <Text style={[styles.filterButtonText, selectedCategory && styles.filterButtonTextActive]}>
+                  {selectedCategory || 'Category'}
+                </Text>
+                <Text style={styles.filterArrow}>{showCategoryFilter ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+            ) : (
+              /* Date Filter for events */
+              <TouchableOpacity 
+                style={[styles.filterButton, selectedDateFilter !== 'all' && styles.filterButtonActive]}
+                onPress={() => setShowDateFilter(!showDateFilter)}
+              >
+                <Text style={[styles.filterButtonText, selectedDateFilter !== 'all' && styles.filterButtonTextActive]}>
+                  {selectedDateFilter === 'all' ? 'Date' : 
+                   selectedDateFilter === 'today' ? 'Today' :
+                   selectedDateFilter === 'tomorrow' ? 'Tomorrow' :
+                   selectedDateFilter === 'this_week' ? 'This Week' : 'Date'}
+                </Text>
+                <Text style={styles.filterArrow}>{showDateFilter ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+            )}
             
             {/* Clear Filters */}
-            {(distanceInput || selectedCategory) && (
+            {(distanceInput || selectedCategory || selectedDateFilter !== 'all') && (
               <TouchableOpacity 
-                style={localStyles.clearFiltersButton}
+                style={styles.clearFiltersButton}
                 onPress={() => {
                   clearDistanceFilter();
-                  clearCategoryFilter();
+                  if (viewMode === 'businesses') {
+                    clearCategoryFilter();
+                  } else {
+                    setSelectedDateFilter('all');
+                    setShowDateFilter(false);
+                  }
                 }}
               >
-                <Text style={localStyles.clearFiltersText}>Clear</Text>
+                <Text style={styles.clearFiltersText}>Clear</Text>
               </TouchableOpacity>
             )}
           </View>
           
           {/* Category Dropdown */}
           {showCategoryFilter && (
-            <View style={localStyles.dropdownContainer}>
+            <View style={styles.dropdownContainer}>
               <ScrollView 
-                style={localStyles.dropdownScrollView}
+                style={styles.dropdownScrollView}
                 nestedScrollEnabled={true}
                 showsVerticalScrollIndicator={true}
                 keyboardShouldPersistTaps="handled"
               >
-                <Text style={localStyles.dropdownHeader}>Primary Types</Text>
+                <Text style={styles.dropdownHeader}>Primary Types</Text>
                 {PRIMARY_CATEGORIES.map((category) => (
                   <TouchableOpacity
                     key={category}
                     style={[
-                      localStyles.dropdownItem,
-                      selectedCategory === category && localStyles.dropdownItemSelected
+                      styles.dropdownItem,
+                      selectedCategory === category && styles.dropdownItemSelected
                     ]}
                     onPress={() => {
                       setSelectedCategory(category);
@@ -398,21 +698,21 @@ export default function ExploreScreen({ navigation }) {
                     }}
                   >
                     <Text style={[
-                      localStyles.dropdownItemText,
-                      selectedCategory === category && localStyles.dropdownItemTextSelected
+                      styles.dropdownItemText,
+                      selectedCategory === category && styles.dropdownItemTextSelected
                     ]}>
                       {category}
                     </Text>
                   </TouchableOpacity>
                 ))}
                 
-                <Text style={localStyles.dropdownHeader}>Activities</Text>
+                <Text style={styles.dropdownHeader}>Activities</Text>
                 {ACTIVITY_CATEGORIES.map((category) => (
                   <TouchableOpacity
                     key={category}
                     style={[
-                      localStyles.dropdownItem,
-                      selectedCategory === category && localStyles.dropdownItemSelected
+                      styles.dropdownItem,
+                      selectedCategory === category && styles.dropdownItemSelected
                     ]}
                     onPress={() => {
                       setSelectedCategory(category);
@@ -420,8 +720,8 @@ export default function ExploreScreen({ navigation }) {
                     }}
                   >
                     <Text style={[
-                      localStyles.dropdownItemText,
-                      selectedCategory === category && localStyles.dropdownItemTextSelected
+                      styles.dropdownItemText,
+                      selectedCategory === category && styles.dropdownItemTextSelected
                     ]}>
                       {category}
                     </Text>
@@ -430,328 +730,244 @@ export default function ExploreScreen({ navigation }) {
               </ScrollView>
             </View>
           )}
-        </View>
-
-        {/* venues i nærheden */}
-        <View style={[styles.section, styles.listWrap]}>
-          <Text style={localStyles.sectionTitle}>
-            {selectedDistance || selectedCategory ? 'Filtered Venues' : 'Venues near you'}
-            {(selectedDistance || selectedCategory) && (
-              <Text style={localStyles.resultCount}> ({filteredVenues.length} of {venues.length})</Text>
-            )}
-          </Text>
-          {/* klikbar card der kalder goToVenue og flytter kortet til venues lokation */}
-          <FlatList
-            data={filteredVenues}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listPad}
-            renderItem={({ item }) => (
-              <View style={localStyles.card}>
-                <TouchableOpacity onPress={() => goToVenue(item)} style={localStyles.cardContent}>
-                  <View style={localStyles.cardHeader}>
-                    <Text style={localStyles.cardTitle}>{item.name}</Text>
-                    {item.distanceText && (
-                      <Text style={localStyles.distanceText}>{item.distanceText}</Text>
-                    )}
-                  </View>
-                  <Text style={localStyles.cardSubtitle}>{item.type} • {item.location || item.address}</Text>
-                  {item.description ? (
-                    <Text style={localStyles.cardDescription}>{item.description}</Text>
-                  ) : null}
-                  {item.categories && item.categories.length > 0 ? (
-                    <Text style={localStyles.cardCategories}>{item.categories.join(' • ')}</Text>
-                  ) : null}
+          
+          {/* Date Filter Dropdown */}
+          {showDateFilter && (
+            <View style={styles.dropdownContainer}>
+              <ScrollView 
+                style={styles.dropdownScrollView}
+                nestedScrollEnabled={true}
+                showsVerticalScrollIndicator={true}
+                keyboardShouldPersistTaps="handled"
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.dropdownItem,
+                    selectedDateFilter === 'all' && styles.dropdownItemSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedDateFilter('all');
+                    setShowDateFilter(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownItemText,
+                    selectedDateFilter === 'all' && styles.dropdownItemTextSelected
+                  ]}>
+                    All Dates
+                  </Text>
                 </TouchableOpacity>
                 
-                {currentUser && userProfile?.userType === 'customer' && (
-                  <TouchableOpacity 
-                    onPress={() => toggleFollowVenue(item)}
-                    style={[
-                      localStyles.followButton,
-                      isVenueFollowed(item.id) && localStyles.followButtonActive
-                    ]}
-                  >
-                    <Text style={[
-                      localStyles.followButtonText,
-                      isVenueFollowed(item.id) && localStyles.followButtonTextActive
-                    ]}>
-                      {isVenueFollowed(item.id) ? '✓ Following' : '+ Follow'}
-                    </Text>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.dropdownItem,
+                    selectedDateFilter === 'today' && styles.dropdownItemSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedDateFilter('today');
+                    setShowDateFilter(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownItemText,
+                    selectedDateFilter === 'today' && styles.dropdownItemTextSelected
+                  ]}>
+                    Today
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.dropdownItem,
+                    selectedDateFilter === 'tomorrow' && styles.dropdownItemSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedDateFilter('tomorrow');
+                    setShowDateFilter(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownItemText,
+                    selectedDateFilter === 'tomorrow' && styles.dropdownItemTextSelected
+                  ]}>
+                    Tomorrow
+                  </Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[
+                    styles.dropdownItem,
+                    selectedDateFilter === 'this_week' && styles.dropdownItemSelected
+                  ]}
+                  onPress={() => {
+                    setSelectedDateFilter('this_week');
+                    setShowDateFilter(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownItemText,
+                    selectedDateFilter === 'this_week' && styles.dropdownItemTextSelected
+                  ]}>
+                    This Week
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          )}
+        </View>
+
+        {/* List Section */}
+        <View style={styles.listWrap}>
+          {viewMode === 'businesses' ? (
+            <>
+              <Text style={styles.sectionTitle}>
+                {selectedDistance || selectedCategory ? 'Filtered Businesses' : 'Businesses near you'}
+                {(selectedDistance || selectedCategory) && (
+                  <Text style={styles.resultCount}> ({filteredVenues.length} of {venues.length})</Text>
                 )}
-              </View>
-            )}
-            ListEmptyComponent={
-              <View style={localStyles.emptyState}>
-                <Text style={localStyles.emptyText}>No venues found</Text>
-                <Text style={localStyles.emptySubtext}>Business owners can add their venues to appear here</Text>
-              </View>
-            }
-          />
+              </Text>
+              <FlatList
+                data={filteredVenues}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={[styles.listPad, { paddingBottom: 0 }]}
+                renderItem={({ item }) => (
+                  <View style={styles.card}>
+                    <TouchableOpacity onPress={() => goToVenue(item)} style={styles.cardContent}>
+                      <View style={styles.cardHeader}>
+                        <Text style={styles.cardTitle}>{item.name}</Text>
+                        {item.distanceText && (
+                          <Text style={styles.distanceText}>{item.distanceText}</Text>
+                        )}
+                      </View>
+                      <Text style={styles.cardSubtitle}>{item.type} • {item.location || item.address}</Text>
+                      {item.description ? (
+                        <Text style={styles.cardDescription}>{item.description}</Text>
+                      ) : null}
+                      {item.categories && item.categories.length > 0 ? (
+                        <Text style={styles.cardCategories}>{item.categories.join(' • ')}</Text>
+                      ) : null}
+                    </TouchableOpacity>
+                    
+                    {currentUser && userProfile?.userType === 'customer' && (
+                      <TouchableOpacity 
+                        onPress={() => toggleFollowVenue(item)}
+                        style={[
+                          styles.followButton,
+                          isVenueFollowed(item.id) && styles.followButtonActive
+                        ]}
+                      >
+                        <Text style={[
+                          styles.followButtonText,
+                          isVenueFollowed(item.id) && styles.followButtonTextActive
+                        ]}>
+                          {isVenueFollowed(item.id) ? '✓ Following' : '+ Follow'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>No businesses found</Text>
+                    <Text style={styles.emptySubtext}>Business owners can add their venues to appear here</Text>
+                  </View>
+                }
+              />
+            </>
+          ) : (
+            <>
+              <Text style={styles.sectionTitle}>
+                {selectedDistance || selectedDateFilter !== 'all' ? 'Filtered Events' : 'Events near you'}
+                {(selectedDistance || selectedDateFilter !== 'all') && (
+                  <Text style={styles.resultCount}> ({filteredEvents.length} of {events.length})</Text>
+                )}
+              </Text>
+              <FlatList
+                data={filteredEvents}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={[styles.listPad, { paddingBottom: 0 }]}
+                renderItem={({ item }) => {
+                  let dateText = 'Date TBD';
+                  
+                  try {
+                    // Safe date parsing with multiple fallbacks
+                    let eventDate;
+                    
+                    if (item.dateTime) {
+                      eventDate = new Date(item.dateTime);
+                    } else if (item.timestamp) {
+                      eventDate = new Date(item.timestamp);
+                    } else if (item.dateISO && item.time) {
+                      eventDate = new Date(item.dateISO + 'T' + item.time + ':00');
+                    } else if (item.date) {
+                      // Handle various date formats
+                      eventDate = new Date(item.date);
+                    }
+                    
+                    // Check if date is valid and format it
+                    if (eventDate && !isNaN(eventDate.getTime())) {
+                      dateText = eventDate.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric'
+                      });
+                      
+                      // Add time if available
+                      if (item.time) {
+                        dateText += ` • ${item.time}`;
+                      }
+                    } else if (item.date) {
+                      // If parsing failed but we have a date string, show it as is
+                      dateText = item.date;
+                      if (item.time) {
+                        dateText += ` • ${item.time}`;
+                      }
+                    }
+                  } catch (error) {
+                    console.log('Error parsing event date for event:', item.id, error);
+                    // Fallback to raw date string if available
+                    if (item.date) {
+                      dateText = item.date;
+                      if (item.time) {
+                        dateText += ` • ${item.time}`;
+                      }
+                    }
+                  }
+                  
+                  return (
+                    <TouchableOpacity 
+                      style={styles.eventCard}
+                      onPress={() => navigation.navigate('EventDetails', { event: item })}
+                    >
+                      <View style={styles.eventHeader}>
+                        <View style={styles.eventMainInfo}>
+                          <Text style={styles.eventTitle} numberOfLines={1}>{item.title || item.name || 'Untitled Event'}</Text>
+                          <Text style={styles.eventVenue} numberOfLines={1}>{item.venueName || 'Unknown Venue'}</Text>
+                        </View>
+                        <View style={styles.eventSideInfo}>
+                          <Text style={styles.eventDate}>
+                            {dateText}
+                          </Text>
+                          {item.distanceText && (
+                            <Text style={styles.eventDistance}>{item.distanceText}</Text>
+                          )}
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                }}
+                ListEmptyComponent={
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyText}>No events found</Text>
+                    <Text style={styles.emptySubtext}>Check back later for new events</Text>
+                  </View>
+                }
+              />
+            </>
+          )}
         </View>
       </View>
     </SafeAreaView>
   );
 }
 
-// Local styles to match other screens' aesthetic
-const localStyles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0b0b0c',
-  },
-  header: {
-    padding: 16,
-    paddingBottom: 0,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  subtitle: {
-    color: '#c9c9ce',
-    fontSize: 16,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-    paddingHorizontal: 16,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1a1a1e',
-  },
-  loadingText: {
-    color: '#c9c9ce',
-    marginTop: 12,
-    fontSize: 16,
-  },
-  card: {
-    backgroundColor: '#1a1a1e',
-    marginHorizontal: 16,
-    marginVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#2b2b31',
-    overflow: 'hidden',
-  },
-  cardContent: {
-    padding: 16,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 4,
-  },
-  cardTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-    flex: 1,
-    marginRight: 8,
-  },
-  distanceText: {
-    color: '#007AFF',
-    fontSize: 14,
-    fontWeight: '600',
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  cardSubtitle: {
-    color: '#c9c9ce',
-    fontSize: 14,
-    marginBottom: 6,
-  },
-  cardDescription: {
-    color: '#9aa0a6',
-    fontSize: 14,
-    marginBottom: 6,
-  },
-  cardCategories: {
-    color: '#007AFF',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  followButton: {
-    backgroundColor: '#2b2b31',
-    padding: 12,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: '#2b2b31',
-  },
-  followButtonActive: {
-    backgroundColor: '#007AFF',
-  },
-  followButtonText: {
-    color: '#c9c9ce',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  followButtonTextActive: {
-    color: '#fff',
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    color: '#c9c9ce',
-    fontSize: 18,
-    fontWeight: '500',
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    color: '#9aa0a6',
-    fontSize: 14,
-    textAlign: 'center',
-    paddingHorizontal: 32,
-  },
-  // Filter styles
-  filterContainer: {
-    backgroundColor: '#1a1a1e',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#2b2b31',
-  },
-  filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  filterTitle: {
-    color: '#c9c9ce',
-    fontSize: 16,
-    fontWeight: '600',
-    marginRight: 8,
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2b2b31',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
-  },
-  filterButtonActive: {
-    backgroundColor: '#0084ff',
-  },
-  filterButtonText: {
-    color: '#c9c9ce',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  filterButtonTextActive: {
-    color: '#fff',
-  },
-  filterArrow: {
-    color: '#9aa0a6',
-    fontSize: 12,
-  },
-  clearFiltersButton: {
-    backgroundColor: '#ff6b6b',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-  clearFiltersText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  dropdownContainer: {
-    backgroundColor: '#2b2b31',
-    borderRadius: 12,
-    marginTop: 8,
-    maxHeight: 200,
-    overflow: 'hidden',
-  },
-  dropdownHeader: {
-    color: '#0084ff',
-    fontSize: 14,
-    fontWeight: '600',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#1a1a1e',
-  },
-  dropdownItem: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#404040',
-  },
-  dropdownItemSelected: {
-    backgroundColor: '#0084ff',
-  },
-  dropdownItemText: {
-    color: '#fff',
-    fontSize: 14,
-  },
-  dropdownItemTextSelected: {
-    fontWeight: '600',
-  },
-  resultCount: {
-    color: '#0084ff',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  distanceInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2b2b31',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 20,
-    gap: 6,
-    borderWidth: 1,
-    borderColor: '#404040',
-  },
-  distanceLabel: {
-    color: '#c9c9ce',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  distanceInput: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '500',
-    minWidth: 40,
-    backgroundColor: '#1a1a1e',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    textAlign: 'center',
-    borderWidth: 1,
-    borderColor: '#0084ff',
-  },
-  doneButton: {
-    backgroundColor: '#0084ff',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 4,
-  },
-  doneButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  dropdownScrollView: {
-    maxHeight: 200,
-  },
-});
+

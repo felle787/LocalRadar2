@@ -17,29 +17,26 @@ import NotificationService from '../services/NotificationService';
 export default function ProfileScreen({ navigation }) {
   const { currentUser, userProfile, logout } = useAuth();
   const [followedVenues, setFollowedVenues] = useState([]);
-  const [favoriteVenues, setFavoriteVenues] = useState([]);
-  const [totalVenues, setTotalVenues] = useState(0);
+  const [myEvents, setMyEvents] = useState([]);
   const [newEventNotifications, setNewEventNotifications] = useState(true);
   const [dayBeforeReminders, setDayBeforeReminders] = useState(true);
   const [eventDayReminders, setEventDayReminders] = useState(true);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
 
   useEffect(() => {
     if (currentUser && userProfile) {
-      let followedUnsubscribe, favoritesUnsubscribe, totalUnsubscribe;
+      let followedUnsubscribe, eventsUnsubscribe;
 
-      // Get all venues and filter locally (Realtime DB doesn't support complex queries like Firestore)
+      // Get all venues and filter locally
       const venuesRef = database.ref('venues');
       
-      totalUnsubscribe = venuesRef.on('value', (snapshot) => {
+      followedUnsubscribe = venuesRef.on('value', (snapshot) => {
         if (snapshot.exists()) {
           const venues = snapshot.val();
           const allVenues = Object.keys(venues).map(key => ({
             id: key,
             ...venues[key]
           }));
-
-          // Set total venues count
-          setTotalVenues(allVenues.length);
 
           // Filter followed venues
           if (userProfile.followedVenues && userProfile.followedVenues.length > 0) {
@@ -50,26 +47,72 @@ export default function ProfileScreen({ navigation }) {
           } else {
             setFollowedVenues([]);
           }
-
-          // Filter favorite venues
-          if (userProfile.favoriteVenues && userProfile.favoriteVenues.length > 0) {
-            const favorites = allVenues.filter(venue => 
-              userProfile.favoriteVenues.includes(venue.id)
-            );
-            setFavoriteVenues(favorites);
-          } else {
-            setFavoriteVenues([]);
-          }
         } else {
-          setTotalVenues(0);
           setFollowedVenues([]);
-          setFavoriteVenues([]);
+        }
+      });
+
+      // Load my events (signed up events that haven't passed)
+      const eventsRef = database.ref('globalEvents');
+      const participantsRef = database.ref('eventParticipants');
+      
+      eventsUnsubscribe = participantsRef.on('value', (participantsSnapshot) => {
+        if (participantsSnapshot.exists()) {
+          const participants = participantsSnapshot.val();
+          const myEventIds = [];
+          
+          // Find events user has signed up for
+          Object.keys(participants).forEach(eventId => {
+            if (participants[eventId][currentUser.uid]) {
+              myEventIds.push(eventId);
+            }
+          });
+          
+          // Get event details for my events
+          eventsRef.once('value', (eventsSnapshot) => {
+            if (eventsSnapshot.exists()) {
+              const events = eventsSnapshot.val();
+              const now = new Date();
+              const upcomingEvents = [];
+              
+              myEventIds.forEach(eventId => {
+                if (events[eventId]) {
+                  const event = events[eventId];
+                  const eventDate = new Date(event.timestamp || event.dateTime || event.createdAt);
+                  
+                  // Only include upcoming events (not past)
+                  if (eventDate >= now) {
+                    upcomingEvents.push({
+                      id: eventId,
+                      ...event
+                    });
+                  }
+                }
+              });
+              
+              // Sort by date (soonest first)
+              upcomingEvents.sort((a, b) => {
+                const dateA = new Date(a.timestamp || a.dateTime || a.createdAt);
+                const dateB = new Date(b.timestamp || b.dateTime || b.createdAt);
+                return dateA - dateB;
+              });
+              
+              setMyEvents(upcomingEvents);
+            } else {
+              setMyEvents([]);
+            }
+          });
+        } else {
+          setMyEvents([]);
         }
       });
 
       return () => {
-        if (totalUnsubscribe) {
-          venuesRef.off('value', totalUnsubscribe);
+        if (followedUnsubscribe) {
+          venuesRef.off('value', followedUnsubscribe);
+        }
+        if (eventsUnsubscribe) {
+          participantsRef.off('value', eventsUnsubscribe);
         }
       };
     }
@@ -110,9 +153,9 @@ export default function ProfileScreen({ navigation }) {
       
       await NotificationService.saveUserNotificationData(currentUser.uid, updatedPreferences);
       
-      // If user enabled any reminder type, check for today's events
+      // If user enabled any reminder type, schedule notifications
       if ((type === 'eventDayReminders' || type === 'dayBeforeReminders') && value) {
-        await NotificationService.checkAndScheduleTodayEvents(currentUser.uid);
+        await NotificationService.scheduleUserNotifications(currentUser.uid, updatedPreferences);
       }
       
     } catch (error) {
@@ -133,7 +176,6 @@ export default function ProfileScreen({ navigation }) {
     try {
       const updatedFollowed = userProfile.followedVenues.filter(id => id !== venueId);
       await database.ref(`users/${currentUser.uid}/followedVenues`).set(updatedFollowed);
-      Alert.alert('Success', 'Venue unfollowed');
     } catch (error) {
       Alert.alert('Error', 'Failed to unfollow venue');
     }
@@ -151,8 +193,7 @@ export default function ProfileScreen({ navigation }) {
 
   const stats = {
     following: followedVenues.length,
-    favorites: favoriteVenues.length,
-    events: totalVenues,
+    myEvents: myEvents.length,
   };
 
   return (
@@ -176,67 +217,78 @@ export default function ProfileScreen({ navigation }) {
         {/* Stats Row */}
         <View style={profileScreenStyles.statsRow}>
           <StatCard label="Following" value={stats.following} />
-          <StatCard label="Favorites" value={stats.favorites} />
-          <StatCard label="Total Venues" value={stats.events} />
+          <StatCard label="My Events" value={stats.myEvents} />
         </View>
 
         {/* Notification Settings */}
         <View style={profileScreenStyles.notificationSection}>
-          <Text style={profileScreenStyles.sectionTitle}>Notification Settings</Text>
+          <TouchableOpacity
+            style={profileScreenStyles.notificationHeader}
+            onPress={() => setShowNotificationSettings(!showNotificationSettings)}
+          >
+            <Text style={profileScreenStyles.sectionTitle}>Notification Settings</Text>
+            <Text style={profileScreenStyles.notificationChevron}>
+              {showNotificationSettings ? '▲' : '▼'}
+            </Text>
+          </TouchableOpacity>
           
-          <View style={profileScreenStyles.notificationItem}>
-            <View style={profileScreenStyles.notificationTextContainer}>
-              <Text style={profileScreenStyles.notificationTitle}>New Event Alerts</Text>
-              <Text style={profileScreenStyles.notificationDescription}>
-                Get notified when businesses you follow post new events
-              </Text>
-            </View>
-            <Switch
-              value={newEventNotifications}
-              onValueChange={(value) => {
-                setNewEventNotifications(value);
-                updateNotificationPreference('newEventNotifications', value);
-              }}
-              trackColor={{ false: '#2b2b31', true: '#007AFF' }}
-              thumbColor={newEventNotifications ? '#fff' : '#8e8e93'}
-            />
-          </View>
+          {showNotificationSettings && (
+            <>
+              <View style={profileScreenStyles.notificationItem}>
+                <View style={profileScreenStyles.notificationTextContainer}>
+                  <Text style={profileScreenStyles.notificationTitle}>New Event Alerts</Text>
+                  <Text style={profileScreenStyles.notificationDescription}>
+                    Get notified when businesses you follow post new events
+                  </Text>
+                </View>
+                <Switch
+                  value={newEventNotifications}
+                  onValueChange={(value) => {
+                    setNewEventNotifications(value);
+                    updateNotificationPreference('newEventNotifications', value);
+                  }}
+                  trackColor={{ false: '#2b2b31', true: '#007AFF' }}
+                  thumbColor={newEventNotifications ? '#fff' : '#8e8e93'}
+                />
+              </View>
 
-          <View style={profileScreenStyles.notificationItem}>
-            <View style={profileScreenStyles.notificationTextContainer}>
-              <Text style={profileScreenStyles.notificationTitle}>Day Before Reminders</Text>
-              <Text style={profileScreenStyles.notificationDescription}>
-                Get reminded 24 hours before events you're attending
-              </Text>
-            </View>
-            <Switch
-              value={dayBeforeReminders}
-              onValueChange={(value) => {
-                setDayBeforeReminders(value);
-                updateNotificationPreference('dayBeforeReminders', value);
-              }}
-              trackColor={{ false: '#2b2b31', true: '#007AFF' }}
-              thumbColor={dayBeforeReminders ? '#fff' : '#8e8e93'}
-            />
-          </View>
+              <View style={profileScreenStyles.notificationItem}>
+                <View style={profileScreenStyles.notificationTextContainer}>
+                  <Text style={profileScreenStyles.notificationTitle}>Day Before Reminders</Text>
+                  <Text style={profileScreenStyles.notificationDescription}>
+                    Get reminded 24 hours before events you're attending
+                  </Text>
+                </View>
+                <Switch
+                  value={dayBeforeReminders}
+                  onValueChange={(value) => {
+                    setDayBeforeReminders(value);
+                    updateNotificationPreference('dayBeforeReminders', value);
+                  }}
+                  trackColor={{ false: '#2b2b31', true: '#007AFF' }}
+                  thumbColor={dayBeforeReminders ? '#fff' : '#8e8e93'}
+                />
+              </View>
 
-          <View style={profileScreenStyles.notificationItem}>
-            <View style={profileScreenStyles.notificationTextContainer}>
-              <Text style={profileScreenStyles.notificationTitle}>Event Day Reminders</Text>
-              <Text style={profileScreenStyles.notificationDescription}>
-                Get reminded 2 hours before events start
-              </Text>
-            </View>
-            <Switch
-              value={eventDayReminders}
-              onValueChange={(value) => {
-                setEventDayReminders(value);
-                updateNotificationPreference('eventDayReminders', value);
-              }}
-              trackColor={{ false: '#2b2b31', true: '#007AFF' }}
-              thumbColor={eventDayReminders ? '#fff' : '#8e8e93'}
-            />
-          </View>
+              <View style={profileScreenStyles.notificationItem}>
+                <View style={profileScreenStyles.notificationTextContainer}>
+                  <Text style={profileScreenStyles.notificationTitle}>Event Day Reminders</Text>
+                  <Text style={profileScreenStyles.notificationDescription}>
+                    Get reminded 2 hours before events start
+                  </Text>
+                </View>
+                <Switch
+                  value={eventDayReminders}
+                  onValueChange={(value) => {
+                    setEventDayReminders(value);
+                    updateNotificationPreference('eventDayReminders', value);
+                  }}
+                  trackColor={{ false: '#2b2b31', true: '#007AFF' }}
+                  thumbColor={eventDayReminders ? '#fff' : '#8e8e93'}
+                />
+              </View>
+            </>
+          )}
         </View>
 
         {/* Followed Venues */}
@@ -251,25 +303,6 @@ export default function ProfileScreen({ navigation }) {
                   venue={item} 
                   onAction={() => unfollowVenue(item.id)}
                   actionText="Unfollow"
-                />
-              )}
-              style={profileScreenStyles.venuesList}
-            />
-          </View>
-        )}
-
-        {/* Favorite Venues */}
-        {favoriteVenues.length > 0 && (
-          <View style={profileScreenStyles.venuesSection}>
-            <Text style={profileScreenStyles.sectionTitle}>Favorites</Text>
-            <FlatList
-              data={favoriteVenues}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => (
-                <VenueItem 
-                  venue={item} 
-                  onAction={() => removeFavorite(item.id)}
-                  actionText="Remove"
                 />
               )}
               style={profileScreenStyles.venuesList}

@@ -1,12 +1,12 @@
 import { StyleSheet } from 'react-native';
 
 export const homeScreenStyles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#0b0b0c' },
-  screen: { flex: 1, paddingHorizontal: 16, paddingTop: 8 },
+  safe: { flex: 1, backgroundColor: 'rgba(39, 87, 158, 1)' },
+  screen: { flex: 1, paddingHorizontal: 16, paddingTop: 8, backgroundColor: 'rgba(39, 87, 158, 1)' },
   
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
@@ -14,6 +14,10 @@ export const homeScreenStyles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: '#fff',
+  },
+  logo: {
+    width: 210,
+    height: 50,
   },
   logoutButton: {
     backgroundColor: '#2b2b31',
@@ -43,8 +47,9 @@ export const homeScreenStyles = StyleSheet.create({
     overflow: 'hidden',
   },
   sectionHeader: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 8,
+    backgroundColor: '#121214',
     borderBottomWidth: 1,
     borderBottomColor: '#1f1f22',
   },
@@ -53,6 +58,7 @@ export const homeScreenStyles = StyleSheet.create({
     fontWeight: '700',
     color: '#c9c9ce',
     marginBottom: 8,
+    paddingLeft: 12,
   },
   filterScrollView: {
     marginBottom: 8,
@@ -86,11 +92,11 @@ export const homeScreenStyles = StyleSheet.create({
 
   cardRow: {
     flexDirection: 'column',
-    width: 180,
-    minHeight: 140,
-    padding: 16,
+    width: 130,
+    minHeight: 110,
+    padding: 10,
     backgroundColor: '#1a1a1e',
-    borderRadius: 16,
+    borderRadius: 20,
     alignItems: 'center',
     marginRight: 12,
     shadowColor: '#000',
@@ -99,10 +105,10 @@ export const homeScreenStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     elevation: 3,
   },
-  thumb: { width: 80, height: 80, borderRadius: 16, marginBottom: 12 },
-  cardTitle: { color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
-  subtle: { color: '#c9c9ce', fontSize: 13, marginTop: 2, textAlign: 'center' },
-  distance: { color: '#8e8e95', fontSize: 12, marginTop: 6, textAlign: 'center' },
+  thumb: { width: 64, height: 64, borderRadius: 14, marginBottom: 10 },
+  cardTitle: { color: '#fff', fontSize: 14, fontWeight: '700', textAlign: 'center', marginBottom: 4 },
+  subtle: { color: '#c9c9ce', fontSize: 12, marginTop: 2, textAlign: 'center' },
+  distance: { color: '#8e8e95', fontSize: 11, marginTop: 6, textAlign: 'center' },
 
   badgeFollowing: {
     backgroundColor: '#2b2b31',
@@ -111,16 +117,17 @@ export const homeScreenStyles = StyleSheet.create({
     borderRadius: 999,
     alignSelf: 'center',
     marginTop: 8,
+    marginLeft: 6,
   },
   badgeText: { color: '#d7d7dd', fontSize: 10, fontWeight: '600' },
 
   cardCol: {
-    width: 200,
-    minHeight: 120,
+    width: '100%',
+    minHeight: 100,
     gap: 6,
-    padding: 12,
+    padding: 8,
     backgroundColor: '#1a1a1e',
-    borderRadius: 16,
+    borderRadius: 20,
     marginRight: 12,
     shadowColor: '#000',
     shadowOpacity: 0.2,
@@ -229,5 +236,103 @@ export const homeScreenStyles = StyleSheet.create({
   statLabel: {
     color: '#888',
     fontSize: 14,
+  },
+  suggestedContainer: {
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  anotherButton: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  anotherButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  viewToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#1a1a1e',
+    borderRadius: 8,
+    padding: 2,
+    marginHorizontal: 0,
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  toggleButtonActive: {
+    backgroundColor: '#007AFF',
+  },
+  toggleButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9aa0a6',
+  },
+  toggleButtonTextActive: {
+    color: '#fff',
+  },
+  wallPostsList: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  postCardItem: {
+    backgroundColor: '#1a1a1e',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2b2b31',
+    alignSelf: 'center',
+    width: '86%',
+  },
+  postCardBusinessName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  postCardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 8,
+  },
+  postCardText: {
+    fontSize: 14,
+    color: '#fff',
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  postCardImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+    marginTop: 12,
+    marginBottom: 12,
+    backgroundColor: '#2b2b31',
+  },
+  postCardDate: {
+    fontSize: 13,
+    color: '#fff',
+    fontWeight: '500',
+  },
+  venueCardItem: {
+    backgroundColor: '#1a1a1e',
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2b2b31',
+    alignSelf: 'center',
+    width: '86%',
+    alignItems: 'center',
   },
 });

@@ -3,7 +3,7 @@ import { StyleSheet } from 'react-native';
 export const profileScreenStyles = StyleSheet.create({
   safe: { 
     flex: 1, 
-    backgroundColor: '#0b0b0c' 
+    backgroundColor: 'rgba(39, 87, 158, 1)' 
   },
   container: { 
     flex: 1, 
@@ -202,6 +202,17 @@ export const profileScreenStyles = StyleSheet.create({
     marginBottom: 16,
     padding: 16,
   },
+  notificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  notificationChevron: {
+    color: '#c9c9ce',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   notificationItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -224,5 +235,11 @@ export const profileScreenStyles = StyleSheet.create({
     fontSize: 13,
     color: '#8e8e93',
     lineHeight: 18,
+  },
+  eventPrice: {
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '600',
+    marginTop: 4,
   },
 });

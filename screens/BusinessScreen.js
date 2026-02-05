@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { database } from '../database/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import styles from '../styles/BusinessScreenStyles';
 
 export default function BusinessScreen() {
   const { currentUser, logout } = useAuth();
@@ -208,7 +210,8 @@ export default function BusinessScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <SafeAreaView style={styles.container}>
+      <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.title}>My Business</Text>
       <Text style={styles.subtitle}>
         Add your business details
@@ -404,262 +407,10 @@ export default function BusinessScreen() {
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <Text style={styles.logoutButtonText}>Logout</Text>
       </TouchableOpacity>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0b0b0c',
-  },
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  subtitle: {
-    color: '#c9c9ce',
-    marginBottom: 16,
-  },
-  label: {
-    color: '#c9c9ce',
-    fontWeight: '600',
-    marginTop: 12,
-    marginBottom: 6,
-  },
 
-  input: {
-    backgroundColor: '#1a1a1e',
-    color: '#fff',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2b2b31',
-  },
-  multiline: {
-    textAlignVertical: 'top',
-    minHeight: 100,
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  col: {
-    flex: 1,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  buttonDisabled: { opacity: 0.7 },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  logoutButton: {
-    backgroundColor: '#FF3B30',
-    padding: 14,
-    borderRadius: 10,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  logoutButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  loadingWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0b0b0c',
-  },
-  loadingText: {
-    color: '#e0e0ff',
-    marginTop: 8,
-  },
-  dropdown: {
-    backgroundColor: '#1a1a1e',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2b2b31',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dropdownText: {
-    color: '#fff',
-    fontSize: 16,
-    flex: 1,
-  },
-  placeholderText: {
-    color: '#9aa0a6',
-  },
-  dropdownArrow: {
-    color: '#9aa0a6',
-    fontSize: 16,
-    marginLeft: 8,
-  },
-  dropdownList: {
-    backgroundColor: '#1a1a1e',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#2b2b31',
-    marginTop: 4,
-    maxHeight: 250,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  dropdownScrollView: {
-    maxHeight: 180,
-  },
-  dropdownHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2b2b31',
-    backgroundColor: '#2b2b31',
-  },
-  dropdownHeaderText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  dropdownCloseButton: {
-    backgroundColor: '#0084ff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  dropdownCloseText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  dropdownItem: {
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#2b2b31',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    minHeight: 48,
-  },
-  dropdownItemSelected: {
-    backgroundColor: '#0084ff',
-  },
-  dropdownItemText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  dropdownItemTextSelected: {
-    fontWeight: '600',
-  },
-  checkmark: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  selectedCategoriesContainer: {
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  selectedCategoriesTitle: {
-    color: '#c9c9ce',
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  selectedCategoriesTags: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  categoryTag: {
-    backgroundColor: '#0084ff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  categoryTagText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  categoryTagRemove: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  imageSection: {
-    marginBottom: 16,
-  },
-  imageContainer: {
-    alignItems: 'center',
-    gap: 12,
-  },
-  venueImage: {
-    width: '100%',
-    height: 200,
-    borderRadius: 12,
-    backgroundColor: '#2b2b31',
-  },
-  changeImageButton: {
-    backgroundColor: '#0084ff',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  changeImageText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  addImageButton: {
-    backgroundColor: '#2b2b31',
-    paddingVertical: 40,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#404040',
-    borderStyle: 'dashed',
-  },
-  addImageText: {
-    color: '#0084ff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  addImageSubtext: {
-    color: '#9aa0a6',
-    fontSize: 12,
-  },
-});
 
