@@ -1,34 +1,40 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { auth, database } from '../database/firebase';
 
+// Opretter authentication context til at dele brugerdata gennem hele appen
 const AuthContext = createContext();
 
+// Custom hook til at få adgang til auth context
 export const useAuth = () => {
   return useContext(AuthContext);
 };
 
+// Auth Provider component - wrapper der giver adgang til auth state i hele appen
 export const AuthProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [profileLoadingStatus, setProfileLoadingStatus] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);           // Firebase auth bruger
+  const [userProfile, setUserProfile] = useState(null);           // Brugerprofil fra database
+  const [loading, setLoading] = useState(true);                   // Indlæsningsstatus
+  const [profileLoadingStatus, setProfileLoadingStatus] = useState(''); // Statusbesked
 
+  // Opretter ny bruger med email og password
   const signup = async (email, password, userType = 'customer') => {
+    // Opretter Firebase authentication bruger
     const userCredential = await auth.createUserWithEmailAndPassword(email, password);
     const user = userCredential.user;
     
-    // Create user profile in Realtime Database
+    // Opretter brugerprofil i Realtime Database med standardværdier
     await database.ref(`users/${user.uid}`).set({
       email: email,
-      userType: userType, // 'customer' or 'business'
+      userType: userType, // 'customer' (kunde) eller 'business' (virksomhed)
       createdAt: new Date().toISOString(),
-      followedVenues: [],
-      favoriteVenues: []
+      followedVenues: [],      // Liste over fulgte venues
+      favoriteVenues: []       // Liste over favorit venues
     });
     
     return userCredential;
   };
 
+  // Logger bruger ind med email og password
   const login = async (email, password) => {
     try {
       const result = await auth.signInWithEmailAndPassword(email, password);
@@ -39,39 +45,43 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Logger bruger ud og rydder profil data
   const logout = () => {
     setUserProfile(null);
     return auth.signOut();
   };
 
+  // Lytter til auth state ændringer og indlæser brugerprofil
   useEffect(() => {
-    let userUnsubscribe = null;
-    let timeoutId = null;
+    let userUnsubscribe = null;  // Holder styr på database subscription
+    let timeoutId = null;        // Timeout ID til at håndtere langsomme forbindelser
     
+    // Firebase auth state listener - kaldes når bruger logger ind/ud
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       setCurrentUser(user);
       
-      // Clean up previous user subscription
+      // Rydder tidligere bruger subscription
       if (userUnsubscribe) {
         userUnsubscribe();
         userUnsubscribe = null;
       }
       
-      // Clear any existing timeout
+      // Rydder eksisterende timeout
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;
       }
       
+      // Hvis bruger er logget ind, indlæs deres profil
       if (user) {
         setProfileLoadingStatus('Loading profile...');
         
-        // Set a timeout to handle slow connections
+        // Sætter timeout til at håndtere langsomme forbindelser (8 sekunder)
         timeoutId = setTimeout(() => {
           console.log('Profile loading timeout - creating fallback profile');
           setProfileLoadingStatus('Connection slow, creating profile...');
           
-          // Create a fallback profile if loading takes too long
+          // Opretter fallback profil hvis indlæsning tager for lang tid
           const fallbackProfile = {
             email: user.email,
             userType: 'customer',
@@ -91,21 +101,22 @@ export const AuthProvider = ({ children }) => {
           setLoading(false);
         }, 8000); // 8 second timeout
         
-        // Subscribe to user profile for real-time updates
+        // Subscriber til brugerprofil for real-time opdateringer fra Firebase
         const userRef = database.ref(`users/${user.uid}`);
         userUnsubscribe = userRef.on('value', async (snapshot) => {
-            // Clear timeout since we got a response
+            // Rydder timeout da vi fik et svar
             if (timeoutId) {
               clearTimeout(timeoutId);
               timeoutId = null;
             }
             
+            // Hvis profil eksisterer, brug den
             if (snapshot.exists()) {
               setUserProfile(snapshot.val());
               setProfileLoadingStatus('');
               setLoading(false);
             } else {
-              // Profile doesn't exist - create default profile
+              // Profil eksisterer ikke - opret standard profil
               console.log('No user profile found for user:', user.email, '- creating default profile');
               setProfileLoadingStatus('Creating profile...');
               
@@ -138,13 +149,13 @@ export const AuthProvider = ({ children }) => {
           }, (error) => {
             console.error('Error fetching user profile:', error);
             
-            // Clear timeout since we got an error response
+            // Rydder timeout da vi fik en fejlbesked
             if (timeoutId) {
               clearTimeout(timeoutId);
               timeoutId = null;
             }
             
-            // Create a fallback profile on error
+            // Opretter fallback profil ved fejl så brugeren kan fortsætte
             setUserProfile({
               email: user.email,
               userType: 'customer',
@@ -156,12 +167,14 @@ export const AuthProvider = ({ children }) => {
             setLoading(false);
           });
       } else {
+        // Hvis ingen bruger, ryd profil data
         setUserProfile(null);
         setProfileLoadingStatus('');
         setLoading(false);
       }
     });
 
+    // Cleanup funktion - afmelder listeners når component unmountes
     return () => {
       unsubscribe();
       if (userUnsubscribe) {

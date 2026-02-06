@@ -44,7 +44,6 @@ export const exploreScreenStyles = StyleSheet.create({
     fontSize: 16,
   },
   
-  // Card stylinfg
   card: {
     backgroundColor: '#1a1a1e',
     marginHorizontal: 16,
@@ -94,8 +93,7 @@ export const exploreScreenStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  
-  // Follow knap styles
+
   followButton: {
     backgroundColor: '#2b2b31',
     padding: 12,
@@ -115,7 +113,6 @@ export const exploreScreenStyles = StyleSheet.create({
     color: '#fff',
   },
   
-  // tomt state styles
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -136,7 +133,6 @@ export const exploreScreenStyles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   
-  // Filter styles
   filterContainer: {
     backgroundColor: '#1a1a1e',
     paddingHorizontal: 16,
@@ -192,7 +188,6 @@ export const exploreScreenStyles = StyleSheet.create({
     fontWeight: '600',
   },
   
-  // Dropdown styles
   dropdownContainer: {
     backgroundColor: '#2b2b31',
     borderRadius: 12,
@@ -228,7 +223,6 @@ export const exploreScreenStyles = StyleSheet.create({
     maxHeight: 200,
   },
   
-  //input styling
   distanceInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -270,8 +264,7 @@ export const exploreScreenStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  
-  // View toggle styling
+
   viewToggle: {
     flexDirection: 'row',
     backgroundColor: '#1a1a1e',
@@ -298,7 +291,6 @@ export const exploreScreenStyles = StyleSheet.create({
     color: '#fff',
   },
   
-  // Event card styling
   eventCard: {
     backgroundColor: '#1a1a1e',
     padding: 8,
@@ -347,7 +339,6 @@ export const exploreScreenStyles = StyleSheet.create({
     fontWeight: '500',
   },
   
-  // Layout styling
   content: { 
     flex: 1, 
     gap: 4 
@@ -374,7 +365,6 @@ export const exploreScreenStyles = StyleSheet.create({
     gap: 12 
   },
   
-  // Original styling til ExploreScreen
   safe: { 
     flex: 1, 
     backgroundColor: 'rgba(39, 87, 158, 1)' 
@@ -529,7 +519,6 @@ export const exploreScreenStyles = StyleSheet.create({
     fontStyle: 'italic',
   },
   
-  // Map layout styling  
   columns: {
     flexDirection: 'row',
   },

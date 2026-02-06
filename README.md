@@ -1,34 +1,36 @@
 # LocalRadar v2
 
-LocalRadar v2 is a React Native app (Expo) for discovering local venues and events. It supports customer and business accounts, real-time updates, and map-based exploration.
+LocalRadar v2 er en React Native app (Expo) til at opdage lokale venues og events. Den understøtter kunde- og virksomhedskonti, realtidsopdateringer og kortbaseret udforskning.
 
-## Features
+## Funktioner
 
-- **Authentication & Roles**: Email/password auth with customer and business account types
-- **Realtime Data**: Venues and events stored in Firebase Realtime Database
-- **Explore Map**: Google Maps view with nearby venues/events and markers
-- **Filters**: Distance, category, and date filtering for venues and events
-- **Follow Venues**: Customers can follow venues and see relevant events
-- **Business Tools**: Create/update venue profiles and post events
-- **Event Details**: Capacity, pricing, and signup flows
-- **Payments (Test Mode)**: Stripe test flow for paid events
-- **Notifications**: Expo push notifications and reminders
+- **Autentificering & Roller**: Email/password login med kunde- og virksomhedskonti
+- **Realtidsdata**: Venues og events lagret i Firebase Realtime Database
+- **Udforsk kort**: Google Maps visning med venues/events i nærheden og markører
+- **Filtre**: Afstand, kategori og datumfiltrering for venues og events
+- **Følg Venues**: Kunder kan følge venues og se relevante events
+- **Virksomhedsværktøjer**: Opret/opdater venue-profiler og opret events
+- **Event-detaljer**: Kapacitet, prissætning og tilmeldingsflow
+- **Betalinger (Test Mode)**: Stripe test flow til betalte events
+- **Notifikationer**: Expo push notifikationer og påmindelser
 
-## Setup
+## Opsætning
 
-### 1. Install Dependencies
+### 1. Installer dependencies
 ```bash
 npm install
 ```
 
-### 2. Firebase Setup (Realtime Database)
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Create or select a project
-3. Enable **Authentication** (Email/Password)
-4. Create a **Realtime Database**
-5. Update `database/firebase.js` with your Firebase config
+### 2. Firebase opsætning (Realtime Database)
+1. Gå til [Firebase Console](https://console.firebase.google.com/)
+2. Opret eller vælg et projekt
+3. Aktivér **Authentication** (Email/Password)
+4. Opret en **Realtime Database**
+5. Opret en `.env` fil i projektets rodmappe (`LocalRadar2/.env`)
+6. Tilføj dine Firebase API-nøgler til `.env` filen:
+7. Gem filen og start appen igen
 
-### 3. Realtime Database Rules (example)
+### 3. Realtime Database regler
 ```json
 {
   "rules": {
@@ -49,24 +51,22 @@ npm install
 ```
 
 ### 4. Stripe (Test Mode)
-Stripe is configured for test mode. Set these environment variables in your Expo config:
+Stripe er konfigureret til test mode. Sæt disse environment variabler i din Expo config:
 
 - `EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-- `EXPO_PUBLIC_STRIPE_TEST_CARD_SUCCESS` (optional)
-- `EXPO_PUBLIC_STRIPE_TEST_CARD_AUTH` (optional)
-- `EXPO_PUBLIC_STRIPE_TEST_CARD_DECLINED` (optional)
+- `EXPO_PUBLIC_STRIPE_TEST_CARD_SUCCESS` (valgfrit)
+- `EXPO_PUBLIC_STRIPE_TEST_CARD_AUTH` (valgfrit)
+- `EXPO_PUBLIC_STRIPE_TEST_CARD_DECLINED` (valgfrit)
 
-See [STRIPE_SETUP.md](STRIPE_SETUP.md) for details.
+### 5. Notifikationer
+Notifikationer bruger Expo. Nogle funktioner kræver en fysisk enhed.
 
-### 5. Notifications
-Notifications use Expo. Some features require a physical device. See [NOTIFICATION_FEATURES.md](NOTIFICATION_FEATURES.md) for configuration details.
-
-### 6. Run the App
-```bash
-npm start
+### 6. Kør appen
+```
+npx expo start --tunnel
 ```
 
-## Project Structure
+## Projektstruktur
 
 ```
 LocalRadar2/
@@ -93,12 +93,12 @@ LocalRadar2/
 └── assets/
 ```
 
-## Usage Flow
+## Brugsflow
 
-1. **Sign up / log in**
-2. **Customers**: browse venues/events, follow venues, and join events
-3. **Businesses**: create/update venue info and post events
-4. **Explore**: use the map and filters to find nearby venues/events
+1. **Tilmeld dig / log ind**
+2. **Kunder**: gennemse venues/events, følg venues og deltag i events
+3. **Virksomheder**: opret/opdater venue info og opret events
+4. **Udforsk**: brug kortet og filtre til at finde venues/events i nærheden
 
 ## Tech Stack
 
@@ -109,6 +109,6 @@ LocalRadar2/
 - **Stripe React Native** (test mode)
 - **Expo Notifications**
 
-## License
+## Licens
 
-MIT
+

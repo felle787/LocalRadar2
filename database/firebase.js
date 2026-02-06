@@ -1,10 +1,10 @@
-// Firebase v8 compat
+// Firebase v8 compatibility mode - ældre version der virker med React Native
 import firebase from 'firebase/compat/app';
-import 'firebase/compat/auth';
-import 'firebase/compat/database';
-import 'firebase/compat/storage';
+import 'firebase/compat/auth';      // Authentication service
+import 'firebase/compat/database';  // Realtime Database
+import 'firebase/compat/storage';   // Cloud Storage
 
-// Firebase configuration
+// Firebase konfiguration - henter credentials fra environment variabler
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -15,18 +15,18 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID
 };
 
-// Initialize Firebase
+// Initialiserer Firebase (kun én gang)
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
 
-// Initialize Firebase services
-export const database = firebase.database();
-export const auth = firebase.auth();
-export const storage = firebase.storage();
+// Eksporterer Firebase services til brug i appen
+export const database = firebase.database();  // Realtime Database til data lagring
+export const auth = firebase.auth();          // Authentication til login/signup
+export const storage = firebase.storage();    // Storage til billeder og filer
 
-// Configure Realtime Database for better performance
-database.goOffline(); // Start offline
-database.goOnline();  // Then go online for better connection handling
+// Konfigurerer Realtime Database for bedre performance og forbindelseshåndtering
+database.goOffline(); // Starter offline
+database.goOnline();  // Går derefter online for bedre connection handling
 
 export default firebase;

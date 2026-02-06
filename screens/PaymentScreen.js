@@ -28,8 +28,8 @@ export default function PaymentScreen({ route, navigation }) {
       // Til testformål simulerer vi flowet og viser test kortnumre
 
       Alert.alert(
-        'Test Mode Payment',
-        'In test mode, you would:\n\n1. Create a payment intent on your backend\n2. Pass the client secret to the app\n3. Confirm payment with Stripe\n\nFor now, we\'ll simulate a successful payment.',
+        'Simulate Payment',
+        'Simulate a successful payment?',
         [
           {
             text: 'Cancel',
@@ -43,13 +43,12 @@ export default function PaymentScreen({ route, navigation }) {
               await new Promise(resolve => setTimeout(resolve, 1500));
               setLoading(false);
               
-              // Call the success callback
+              // Call the success callback (this will show the notification)
               if (onPaymentSuccess) {
                 await onPaymentSuccess();
               }
               
               navigation.goBack();
-              Alert.alert('Success', 'Payment processed successfully! You are now registered for the event.');
             },
           },
         ]

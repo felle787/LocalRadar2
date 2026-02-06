@@ -1,15 +1,16 @@
+// Vigtigt: Skal importeres først for gesture håndtering
 import 'react-native-gesture-handler';
 import React from 'react';
 import { View, Text } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
-import { Ionicons } from '@expo/vector-icons';
-import { StatusBar } from 'expo-status-bar';
-import { StripeProvider } from '@stripe/stripe-react-native';
+import { NavigationContainer } from '@react-navigation/native';      // Navigation wrapper
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';  // Bottom tabs
+import { createStackNavigator } from '@react-navigation/stack';      // Stack navigation
+import { Ionicons } from '@expo/vector-icons';                       // Icons
+import { StatusBar } from 'expo-status-bar';                         // Status bar styling
+import { StripeProvider } from '@stripe/stripe-react-native';       // Stripe betalinger
 
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { STRIPE_CONFIG } from './config/stripe';
+import { AuthProvider, useAuth } from './contexts/AuthContext';    // Authentication context
+import { STRIPE_CONFIG } from './config/stripe';                    // Stripe konfiguration
 import HomeScreen from './screens/homeScreen';
 import ExploreScreen from './screens/exploreScreen';
 import ProfileScreen from './screens/profileScreen';
@@ -22,9 +23,11 @@ import PaymentScreen from './screens/PaymentScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
 
-const Tab = createBottomTabNavigator();
-const Stack = createStackNavigator();
+// Opretter navigators til forskellige dele af appen
+const Tab = createBottomTabNavigator();   // Bottom tab navigation
+const Stack = createStackNavigator();     // Stack navigation
 
+// Authentication stack - login og registrering (ikke logget ind)
 function AuthStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -34,6 +37,7 @@ function AuthStack() {
   );
 }
 
+// Home stack - hjem skærm med navigation til events, posts og betaling
 function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -45,6 +49,7 @@ function HomeStack() {
   );
 }
 
+// Explore stack - udforsk kort og virksomheder
 function ExploreStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -56,19 +61,21 @@ function ExploreStack() {
   );
 }
 
+// Bottom tabs for kunder - Hjem, Udforsk, Profil
 function CustomerTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        // Definerer hvilket ikon der skal vises for hver tab
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
 
           if (route.name === 'Home') {
-            iconName = focused ? 'home' : 'home-outline';
+            iconName = focused ? 'home' : 'home-outline';          // Hjem ikon
           } else if (route.name === 'Explore') {
-            iconName = focused ? 'search' : 'search-outline';
+            iconName = focused ? 'search' : 'search-outline';      // Søg ikon
           } else if (route.name === 'Profile') {
-            iconName = focused ? 'person' : 'person-outline';
+            iconName = focused ? 'person' : 'person-outline';      // Profil ikon
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -92,19 +99,21 @@ function CustomerTabs() {
   );
 }
 
+// Bottom tabs for virksomheder - Min Virksomhed, Events, Posts
 function BusinessTabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        // Definerer hvilket ikon der skal vises for hver tab
         tabBarIcon: ({ focused, color, size }) => {
           let iconName;
 
           if (route.name === 'Business') {
-            iconName = focused ? 'business' : 'business-outline';
+            iconName = focused ? 'business' : 'business-outline';    // Virksomhed ikon
           } else if (route.name === 'Events') {
-            iconName = focused ? 'calendar' : 'calendar-outline';
+            iconName = focused ? 'calendar' : 'calendar-outline';    // Kalender ikon
           } else if (route.name === 'Posts') {
-            iconName = focused ? 'images' : 'images-outline';
+            iconName = focused ? 'images' : 'images-outline';        // Billeder ikon
           }
 
           return <Ionicons name={iconName} size={size} color={color} />;
@@ -140,17 +149,21 @@ function BusinessTabs() {
   );
 }
 
+// Hoved app content, håndterer navigation baseret på bruger status
 function AppContent() {
   const { currentUser, userProfile, profileLoadingStatus } = useAuth();
 
+  // Beslutter hvilken navigation der skal vises baseret på bruger type og status
   const getNavigationComponent = () => {
     console.log('Navigation check - currentUser:', !!currentUser, 'userProfile:', userProfile?.userType);
     
+    // Hvis ikke logget ind, vis login/register
     if (!currentUser) {
       console.log('No current user - showing AuthStack');
       return <AuthStack />;
     }
     
+    // Hvis bruger eksisterer men profil ikke er indlæst, vis loading
     if (!userProfile) {
       console.log('User exists but no profile - showing loading');
       return (
@@ -171,10 +184,12 @@ function AppContent() {
       );
     }
     
+    // Hvis bruger er virksomhed, vis business tabs
     if (userProfile?.userType === 'business') {
       console.log('Showing BusinessTabs for business user');
       return <BusinessTabs />;
     } else {
+      // Ellers vis customer tabs (standard)
       console.log('Showing CustomerTabs for customer user');
       return <CustomerTabs />;
     }
@@ -188,9 +203,12 @@ function AppContent() {
   );
 }
 
+// Hoved App component - wrapper med providers
 export default function App() {
   return (
+    // Stripe Provider til betalingsfunktionalitet
     <StripeProvider publishableKey={STRIPE_CONFIG.publishableKey}>
+      {/* Auth Provider til bruger authentication state */}
       <AuthProvider>
         <AppContent />
       </AuthProvider>
