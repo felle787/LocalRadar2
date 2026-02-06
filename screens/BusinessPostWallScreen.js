@@ -40,7 +40,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
   const combinedData = dataToShow.sort((a, b) => {
     let aTime, bTime;
     
-    // Håndter item A som er enten en post eller en event
+    // håndterer item A først som er posts
     try {
       if (a.timestamp) {
         aTime = a.timestamp;
@@ -85,6 +85,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
     return bTime - aTime;
   });
 
+  // henter posts og events, og tjekker om brugeren følger virksomheden
   useEffect(() => {
     if (!businessId) return;
 

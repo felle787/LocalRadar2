@@ -74,18 +74,21 @@ export default function BusinessScreen() {
       });
   }, [currentUser]);
 
-  // Handler for gemning af virksomhedsdata
+  // Gemmer virksomhedsdata til Firebase med validering og geocoding
   const onSave = async () => {
+    // Tjekker om brugeren er logget ind
     if (!currentUser) {
       Alert.alert('Error', 'No user logged in');
       return;
     }
 
+    // Validerer at virksomhedsnavn er udfyldt
     if (!name.trim()) {
       Alert.alert('Missing Name', 'Please enter a business name.');
       return;
     }
 
+    // Validerer at adresse er udfyldt
     if (!address.trim()) {
       Alert.alert('Missing Address', 'Please enter the venue address.');
       return;
@@ -94,26 +97,27 @@ export default function BusinessScreen() {
     try {
       setSaving(true);
       
-      // Opbygge data payload med virksomhedsoplysninger
+      // Opbygger data payload med alle virksomhedsoplysninger
       const payload = {
         ownerId: currentUser.uid,
         name: name.trim(),
         address: address.trim(),
         location: locationText.trim(),
-        type: type || 'Bar',
+        type: type || 'Bar', // Standardværdi hvis ingen type er valgt
         categories: selectedCategories,
         description: description.trim(),
-        imageUrl: venueImage || null,
+        imageUrl: venueImage || null, // Base64 billede eller null
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      // Forsøg at geocode adressen automatisk for at få koordinater
+      // Forsøger at geocode adressen automatisk for at få GPS-koordinater
       let coords = null;
       try {
         const fullAddress = `${address.trim()}, ${locationText.trim()}`;
         const geocodedLocation = await Location.geocodeAsync(fullAddress);
         
+        // Hvis geocoding lykkes, gem koordinaterne
         if (geocodedLocation && geocodedLocation.length > 0) {
           coords = {
             latitude: geocodedLocation[0].latitude,
@@ -122,21 +126,24 @@ export default function BusinessScreen() {
           console.log(`Geocoded address "${fullAddress}" to:`, coords);
         }
       } catch (geocodeError) {
+        // Hvis geocoding fejler, fortsætter vi uden koordinater
         console.log('Geocoding failed:', geocodeError.message);
       }
 
+      // Tilføjer koordinater til payload hvis de er fundet
       if (coords) {
         payload.coordinates = coords;
       }
 
       console.log('Saving venue:', payload);
       
-      // Gem med timeout-beskyttelse
+      // Gemmer til Firebase med timeout beskyttelse (maks 10 sekunder)
       const savePromise = database.ref(`venues/${currentUser.uid}`).set(payload);
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Save operation timed out')), 10000)
       );
 
+      // Venter på enten save eller timeout - hvad der sker først
       await Promise.race([savePromise, timeoutPromise]);
       
       // Bekræft gemning og informer brugeren
@@ -157,21 +164,65 @@ export default function BusinessScreen() {
     }
   };
 
-  // for at aktivere/deaktivere kategori
+  // Aktiverer/deaktiverer en kategori i listen af valgte kategorier
   const toggleCategory = (category) => {
     setSelectedCategories(prev => {
       if (prev.includes(category)) {
+        // Hvis kategorien allerede er valgt, fjern den
         return prev.filter(c => c !== category);
       } else {
+        // Hvis kategorien ikke er valgt, tilføj den
         return [...prev, category];
       }
     });
   };
   
-  //  for at vælge og indlæse billede fra galleriet
+  // Konverterer billede til base64 format til lagring i Firebase Realtime Database
+  const uploadImage = async (imageUri) => {
+    try {
+      console.log('Converting image to base64:', imageUri);
+      
+      // Henter billedfil fra lokal URI
+      const response = await fetch(imageUri);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status}`);
+      }
+      
+      // Konverterer til blob
+      const blob = await response.blob();
+      console.log('Blob created, size:', blob.size);
+      
+      // Validerer at filen ikke er tom
+      if (blob.size === 0) {
+        throw new Error('Image file is empty');
+      }
+      
+      // Tjekker filstørrelse (maks 1MB for at undgå database begrænsninger)
+      if (blob.size > 1024 * 1024) {
+        throw new Error('Image too large. Please select an image smaller than 1MB.');
+      }
+      
+      // Læser blob som base64 string
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result;
+          console.log('Image converted to base64, size:', base64String.length);
+          resolve(base64String);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob); // Konverterer til data URL (base64)
+      });
+    } catch (error) {
+      console.error('Image conversion error:', error);
+      throw new Error(`Image processing failed: ${error.message || 'Unknown error'}`);
+    }
+  };
+
+  // Åbner billedvælger og uploader valgt billede til base64
   const pickImage = async () => {
     try {
-      // Anmod om tilladelse til mediabibliotek
+      // Anmoder om tilladelse til at tilgå mediegalleriet
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permissionResult.granted === false) {
@@ -179,20 +230,27 @@ export default function BusinessScreen() {
         return;
       }
 
-      // Åbn billedvælger
+      // Åbner billedvælgeren med 16:9 aspect ratio og 80% kvalitet
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [16, 9],
-        quality: 0.8,
+        aspect: [16, 9], // Anbefalet format for business billeder
+        quality: 0.8, // 80% kvalitet for at reducere filstørrelse
       });
 
-      if (!result.canceled) {
+      // Hvis brugeren har valgt et billede, konverter og gem det
+      if (!result.canceled && result.assets && result.assets[0]) {
         setImageUploading(true);
-        // I en rigtig app ville du uploade til Firebase Storage her
-        // For nu gemmer vi bare den lokale URI
-        setVenueImage(result.assets[0].uri);
-        setImageUploading(false);
+        try {
+          // Konverterer billede til base64 for lagring i database
+          const base64Image = await uploadImage(result.assets[0].uri);
+          setVenueImage(base64Image);
+          setImageUploading(false);
+        } catch (uploadError) {
+          setImageUploading(false);
+          console.error('Upload error:', uploadError);
+          Alert.alert('Upload Failed', uploadError.message || 'Failed to upload image');
+        }
       }
     } catch (error) {
       setImageUploading(false);
@@ -201,12 +259,13 @@ export default function BusinessScreen() {
     }
   };
   
-  // Luk dropdownmenuer når der trykkes uden for
+  // Lukker alle åbne dropdown-menuer
   const closeDropdowns = () => {
     setShowPrimaryDropdown(false);
     setShowCategoriesDropdown(false);
   };
   
+  // Håndterer logout med bekræftelsesdialog
   const handleLogout = () => {
     Alert.alert(
       'Logout',
@@ -221,11 +280,13 @@ export default function BusinessScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+      {/* Overskrift og undertitel */}
       <Text style={styles.title}>My Business</Text>
       <Text style={styles.subtitle}>
         Add your business details
       </Text>
 
+      {/* Virksomhedsnavn input */}
       <Text style={styles.label}>Business Name</Text>
       <TextInput 
         style={styles.input} 
@@ -248,8 +309,10 @@ export default function BusinessScreen() {
         selectTextOnFocus={true}
       />
 
+      {/* Billede upload sektion */}
       <Text style={styles.label}>Business Image</Text>
       <View style={styles.imageSection}>
+        {/* Viser eksisterende billede med mulighed for at ændre det */}
         {venueImage ? (
           <View style={styles.imageContainer}>
             <Image source={{ uri: venueImage }} style={styles.venueImage} />
@@ -290,6 +353,7 @@ export default function BusinessScreen() {
         selectTextOnFocus={true}
       />
 
+      {/* Primær kategori dropdown */}
       <Text style={styles.label}>Primary Category</Text>
       <TouchableOpacity 
         style={styles.dropdown}
@@ -301,6 +365,7 @@ export default function BusinessScreen() {
         <Text style={styles.dropdownArrow}>{showPrimaryDropdown ? '▲' : '▼'}</Text>
       </TouchableOpacity>
       
+      {/* Dropdown liste med primære kategorier */}
       {showPrimaryDropdown && (
         <View style={styles.dropdownList}>
           <ScrollView 
@@ -309,6 +374,7 @@ export default function BusinessScreen() {
             showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Mapper gennem alle primære kategorier */}
             {PRIMARY_CATEGORIES.map((category) => (
               <TouchableOpacity
                 key={category}
@@ -327,6 +393,7 @@ export default function BusinessScreen() {
         </View>
       )}
       
+      {/* Aktiviteter og kategorier multi-select dropdown */}
       <Text style={styles.label}>Categories & Activities</Text>
       <TouchableOpacity 
         style={styles.dropdown}
@@ -378,6 +445,7 @@ export default function BusinessScreen() {
 
 
 
+      {/* Viser valgte kategorier som tags der kan fjernes */}
       {selectedCategories.length > 0 && (
         <View style={styles.selectedCategoriesContainer}>
           <Text style={styles.selectedCategoriesTitle}>Selected Categories:</Text>
@@ -396,6 +464,7 @@ export default function BusinessScreen() {
         </View>
       )}
       
+      {/* Beskrivelse input (multiline) */}
       <Text style={styles.label}>Description</Text>
       <TextInput 
         style={[styles.input, styles.multiline]} 
@@ -409,6 +478,7 @@ export default function BusinessScreen() {
         selectTextOnFocus={true}
       />
 
+      {/* Gem knap - deaktiveret under gemning */}
       <TouchableOpacity style={[styles.button, saving && styles.buttonDisabled]} onPress={onSave} disabled={saving}>
         <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save Business'}</Text>
       </TouchableOpacity>

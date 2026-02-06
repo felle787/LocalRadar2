@@ -131,7 +131,7 @@ export default function BusinessDetailsScreen({ route, navigation }) {
           )}
         </View>
 
-        {/* beskrivelse */}
+        {/* beskrivelse  af virksomhedens about*/}
         {venue.description && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>About</Text>
@@ -139,7 +139,7 @@ export default function BusinessDetailsScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* kategorier */}
+        {/* viser venue kategorier*/}
         {venue.categories && venue.categories.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>What we offer</Text>
@@ -153,7 +153,7 @@ export default function BusinessDetailsScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Events */}
+        {/* viser detaljer til events */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Upcoming Events ({events.length})</Text>
           {events.length > 0 ? (

@@ -15,15 +15,15 @@ import NotificationService from '../services/NotificationService';
 import styles from '../styles/EventDetailsScreenStyles';
 
 export default function EventDetailsScreen({ route, navigation }) {
-  // Hent event data fra route parametere
+  // henter event data fra route 
   const { event } = route.params;
-  // Autentifiseringskontekst
+  // henter nuværende bruger fra autentifiseringskontekst
   const { currentUser } = useAuth();
-  // Tilstand for om bruger deltager i event
+  // state for om bruger deltager i event
   const [isParticipating, setIsParticipating] = useState(false);
-  // Tilstand for antal deltagende
+  // state for antal deltagende
   const [participantCount, setParticipantCount] = useState(event.currentAttendees || 0);
-  // Tilstand for indlæsning
+  // state for indlæsning
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -69,13 +69,13 @@ export default function EventDetailsScreen({ route, navigation }) {
       return;
     }
 
-    // Check if event is at capacity
+    // Tjek om event er fuldt, hvis brugeren ikke allerede deltager
     if (event.maxCapacity && participantCount >= event.maxCapacity) {
       Alert.alert('Event Full', 'Sorry, this event has reached maximum capacity.');
       return;
     }
 
-    // If leaving the event, handle it directly
+    // Hvis brugeren allerede deltager, håndter afmelding
     if (isParticipating) {
       setLoading(true);
       
@@ -85,10 +85,10 @@ export default function EventDetailsScreen({ route, navigation }) {
         
         console.log(`Leaving event ${event.id}, current count: ${participantCount}`);
         
-        // Remove participation
+        // Fjern deltagelse
         await participantRef.remove();
         
-        // Get current count from database and update atomically
+        // Hent aktuelt antal fra databasen og opdater atomisk
         const currentCountSnapshot = await eventRef.child('currentAttendees').once('value');
         const currentCount = currentCountSnapshot.val() || 0;
         const newCount = Math.max(0, currentCount - 1);
@@ -96,7 +96,7 @@ export default function EventDetailsScreen({ route, navigation }) {
         await eventRef.child('currentAttendees').set(newCount);
         console.log(`Updated participant count from ${currentCount} to ${newCount}`);
         
-        // Remove from user's participations and cancel all reminders
+        // Fjern fra brugerens deltagelser og annuller alle påmindelser
         await database.ref(`users/${currentUser.uid}/eventParticipations/${event.id}`).remove();
         await NotificationService.cancelEventReminders(event.id);
         
@@ -111,19 +111,19 @@ export default function EventDetailsScreen({ route, navigation }) {
       return;
     }
 
-    // If joining a paid event, navigate to payment screen
+    // Hvis brugeren tilmelder sig et betalt event, naviger til betalingsskærm
     if (event.ticketPrice && parseFloat(event.ticketPrice) > 0) {
       navigation.navigate('Payment', {
         event: event,
         onPaymentSuccess: async () => {
-          // This function will be called after successful payment
+          // Denne funktion vil blive kaldt efter en vellykket betaling
           await completeEventRegistration();
         }
       });
       return;
     }
 
-    // For free events, register directly
+    // For gratis events, tilmeld direkte
     await completeEventRegistration();
   };
 
@@ -136,14 +136,14 @@ export default function EventDetailsScreen({ route, navigation }) {
       
       console.log(`Joining event ${event.id}, current count: ${participantCount}`);
       
-      // Add participation
+      // Tilføj deltagelse
       await participantRef.set({
         userId: currentUser.uid,
         joinedAt: new Date().toISOString(),
         eventId: event.id,
       });
       
-      // Get current count from database and update atomically
+      // Hent aktuelt antal fra databasen og opdater atomisk
       const currentCountSnapshot = await eventRef.child('currentAttendees').once('value');
       const currentCount = currentCountSnapshot.val() || 0;
       const newCount = currentCount + 1;
@@ -151,14 +151,14 @@ export default function EventDetailsScreen({ route, navigation }) {
       await eventRef.child('currentAttendees').set(newCount);
       console.log(`Updated participant count from ${currentCount} to ${newCount}`);
       
-      // Also save to user's event participations
+      // Gem også i brugerens eventdeltagelser
       await database.ref(`users/${currentUser.uid}/eventParticipations/${event.id}`).set(true);
       
-      // Schedule notification reminders based on user preferences
+      // Planlæg notifikationspåmindelser baseret på brugerpræferencer
       const userPrefsSnapshot = await database.ref(`users/${currentUser.uid}/notificationPreferences`).once('value');
       const userPrefs = userPrefsSnapshot.val() || {};
       
-      // Schedule day-before reminder if enabled (default: true)
+      // Planlæg påmindelse dagen før, hvis aktiveret (standard: true)
       if (userPrefs.dayBeforeReminders !== false) {
         console.log(`Scheduling day-before reminder for event on ${event.date || event.dateISO}`);
         try {
@@ -168,7 +168,7 @@ export default function EventDetailsScreen({ route, navigation }) {
         }
       }
       
-      // Schedule event day reminder if enabled (default: true)  
+      // Planlæg påmindelse på eventdagen, hvis aktiveret (standard: true)  
       if (userPrefs.eventDayReminders !== false) {
         console.log(`Scheduling event-day reminder for event on ${event.date || event.dateISO}`);
         try {
@@ -178,6 +178,7 @@ export default function EventDetailsScreen({ route, navigation }) {
         }
       }
       
+      // Opdater lokal state for at reflektere deltagelse
       setIsParticipating(true);
       Alert.alert('Success', 'You have successfully joined this event!');
     } catch (error) {
@@ -188,6 +189,7 @@ export default function EventDetailsScreen({ route, navigation }) {
     }
   };
 
+  // Funktion til at formatere dato og tid for eventet
   const formatDateTime = () => {
     if (event.dateTime) {
       const eventDate = new Date(event.dateTime);
@@ -221,7 +223,7 @@ export default function EventDetailsScreen({ route, navigation }) {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Event Title and Pricing */}
+        {/* Event titel og pris */}
         <View style={styles.titleSection}>
           <View style={styles.titleRow}>
             <Text style={styles.eventTitle}>{event.title}</Text>
@@ -279,7 +281,7 @@ export default function EventDetailsScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Event Description */}
+        {/* Event beskrivelse */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="document-text" size={20} color="#0084ff" />
@@ -290,7 +292,7 @@ export default function EventDetailsScreen({ route, navigation }) {
           </Text>
         </View>
 
-        {/* Venue Information */}
+        {/* Venue information */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Ionicons name="location" size={20} color="#0084ff" />
@@ -303,7 +305,7 @@ export default function EventDetailsScreen({ route, navigation }) {
         </View>
       </ScrollView>
 
-      {/* Participate Button */}
+      {/* deltag knap */}
       {!isEventPast && (
         <View style={styles.buttonContainer}>
           <TouchableOpacity
