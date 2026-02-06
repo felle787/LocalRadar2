@@ -478,7 +478,7 @@ export default function BusinessScreen() {
         selectTextOnFocus={true}
       />
 
-      {/* Gem knap - deaktiveret under gemning */}
+      {/* Gem knap, deaktiveret under gemning */}
       <TouchableOpacity style={[styles.button, saving && styles.buttonDisabled]} onPress={onSave} disabled={saving}>
         <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save Business'}</Text>
       </TouchableOpacity>

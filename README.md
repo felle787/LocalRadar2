@@ -21,14 +21,19 @@ LocalRadar v2 er en React Native app (Expo) til at opdage lokale venues og event
 npm install
 ```
 
-### 2. Firebase opsætning (Realtime Database)
-1. Gå til [Firebase Console](https://console.firebase.google.com/)
-2. Opret eller vælg et projekt
-3. Aktivér **Authentication** (Email/Password)
-4. Opret en **Realtime Database**
-5. Opret en `.env` fil i projektets rodmappe (`LocalRadar2/.env`)
-6. Tilføj dine Firebase API-nøgler til `.env` filen:
-7. Gem filen og start appen igen
+### 2. Firebase konfiguration (.env fil)
+1. Opret en `.env` fil i projektets rodmappe (`LocalRadar2/.env`)
+2. Tilføj  Firebase API-nøglerne til `.env` filen:
+```
+EXPO_PUBLIC_FIREBASE_API_KEY=your_api_key
+EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+EXPO_PUBLIC_FIREBASE_DATABASE_URL=your_database_url
+EXPO_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+EXPO_PUBLIC_FIREBASE_APP_ID=your_app_id
+```
+3. Gem filen og start appen igen
 
 ### 3. Realtime Database regler
 ```json
