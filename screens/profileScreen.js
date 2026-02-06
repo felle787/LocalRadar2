@@ -292,7 +292,7 @@ export default function ProfileScreen({ navigation }) {
           )}
         </View>
 
-        {/* Followed Venues */}
+        {/* Fulgte Venues */}
         {followedVenues.length > 0 && (
           <View style={profileScreenStyles.venuesSection}>
             <Text style={profileScreenStyles.sectionTitle}>Following</Text>

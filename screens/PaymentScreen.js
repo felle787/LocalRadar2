@@ -25,13 +25,7 @@ export default function PaymentScreen({ route, navigation }) {
 
     try {
       // I en rigtig app ville du kalde din backend til at oprette payment intent
-      // Til testformål simulerer vi flowet
-      
-      // IMPORTANT: This is a simplified test implementation
-      // In production, you MUST have a backend server that:
-      // 1. Creates a payment intent using your Stripe secret key
-      // 2. Returns the client secret to your app
-      // 3. Never exposes your secret key in the client app
+      // Til testformål simulerer vi flowet og viser test kortnumre
 
       Alert.alert(
         'Test Mode Payment',

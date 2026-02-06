@@ -195,7 +195,7 @@ export const profileScreenStyles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Notification Settings Styles
+  // Notifikation Indstillinger Styling
   notificationSection: {
     backgroundColor: '#121214',
     borderRadius: 12,

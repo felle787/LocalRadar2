@@ -25,11 +25,11 @@ export default function EventsScreen() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Form collapse state
+  // Formular kollaps tilstand
   const [isFormExpanded, setIsFormExpanded] = useState(false);
   const slideAnim = useRef(new Animated.Value(0)).current;
   
-  // Form fields for new event
+  // Formularfelter for nyt event
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -40,7 +40,7 @@ export default function EventsScreen() {
   const [ticketPrice, setTicketPrice] = useState('');
   const [isFreeEvent, setIsFreeEvent] = useState(true);
   
-  // Format dates for display and storage
+  // Formater datoer til visning og lagring
   const formatDate = (date) => {
     return date.toLocaleDateString('en-US', {
       weekday: 'short',
@@ -62,7 +62,7 @@ export default function EventsScreen() {
     return date.toISOString().split('T')[0];
   };
   
-  // Toggle form expansion with animation
+  // Skift formularudvidelse med animation
   const toggleForm = () => {
     const toValue = isFormExpanded ? 0 : 1;
     setIsFormExpanded(!isFormExpanded);
@@ -75,7 +75,7 @@ export default function EventsScreen() {
     }).start();
   };
 
-  // Load existing events for this venue
+  // Hent eksisterende events for dette venue
   useEffect(() => {
     if (!currentUser) return;
     
@@ -90,7 +90,7 @@ export default function EventsScreen() {
             ...eventsData[key]
           });
         });
-        // Sort by creation date, newest first
+        // Sorter efter oprettelsesdato, nyeste først
         eventsList.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
       }
       setEvents(eventsList);
@@ -100,7 +100,7 @@ export default function EventsScreen() {
     return () => eventsRef.off('value', unsubscribe);
   }, [currentUser]);
 
-  // Apply filter whenever events or filter changes
+  // Anvend filter, når events eller filter ændres
   useEffect(() => {
     const now = new Date();
     let filtered = [];
@@ -138,36 +138,36 @@ export default function EventsScreen() {
       return;
     }
 
-    // Date and time are now always set from pickers, so no validation needed for empty values
+    // Dato og tid er nu altid sat fra pickere, så der er ikke behov for validering af tomme værdier
     const eventDateTime = new Date(selectedDate);
     eventDateTime.setHours(selectedTime.getHours());
     eventDateTime.setMinutes(selectedTime.getMinutes());
     
-    // Check if event is in the past
+    // Tjek om event er i fortiden
     if (eventDateTime < new Date()) {
       Alert.alert('Invalid Date', 'Event date and time cannot be in the past.');
       return;
     }
     
-    // Validate capacity
+    // Valider kapacitet
     if (maxCapacity.trim() && (isNaN(maxCapacity) || parseInt(maxCapacity) < 1)) {
       Alert.alert('Invalid Capacity', 'Maximum capacity must be a positive number.');
       return;
     }
     
-    // Validate price
+    // Valider pris
     if (!isFreeEvent && ticketPrice.trim() && (isNaN(ticketPrice) || parseFloat(ticketPrice) < 0)) {
       Alert.alert('Invalid Price', 'Ticket price must be a valid number.');
       return;
     }
     
-    // Validate capacity
+    // Valider kapacitet
     if (maxCapacity.trim() && (isNaN(maxCapacity) || parseInt(maxCapacity) < 1)) {
       Alert.alert('Invalid Capacity', 'Maximum capacity must be a positive number.');
       return;
     }
     
-    // Validate price
+    // Valider pris
     if (!isFreeEvent && ticketPrice.trim() && (isNaN(ticketPrice) || parseFloat(ticketPrice) < 0)) {
       Alert.alert('Invalid Price', 'Ticket price must be a valid number.');
       return;
@@ -176,7 +176,7 @@ export default function EventsScreen() {
     try {
       setSaving(true);
       
-      // Get venue information first
+      // Hent venue information først
       const venueSnapshot = await database.ref(`venues/${currentUser.uid}`).once('value');
       const venueData = venueSnapshot.val();
       
@@ -209,18 +209,18 @@ export default function EventsScreen() {
         createdAt: new Date().toISOString(),
       };
 
-      // Create new event with auto-generated ID
+      // Opret nyt event med auto-genereret ID
       const newEventRef = database.ref(`events/${currentUser.uid}`).push();
       await newEventRef.set(eventData);
 
-      // Also add to global events for homepage
+      // Tilføj også til globale events til forsiden
       await database.ref(`globalEvents/${newEventRef.key}`).set({
         ...eventData,
         eventId: newEventRef.key,
         userId: currentUser.uid
       });
 
-      // Clear form
+      // Ryd formular
       setTitle('');
       setDescription('');
       setSelectedDate(new Date());
@@ -229,13 +229,13 @@ export default function EventsScreen() {
       setTicketPrice('');
       setIsFreeEvent(true);
       
-      // Collapse form after successful creation
+      // lukker formular efter succesfuld oprettelse
       toggleForm();
       setMaxCapacity('');
       setTicketPrice('');
       setIsFreeEvent(true);
       
-      // Collapse form after successful creation
+      // lukker formular efter succesfuld oprettelse
       toggleForm();
 
       Alert.alert('Success!', 'Your event has been posted!');
@@ -277,7 +277,7 @@ export default function EventsScreen() {
       </View>
 
       <ScrollView style={styles.content}>
-        {/* Event Creation Form */}
+        {/* formular til at Oprette Event Formular */}
         <View style={styles.formSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Create New Event</Text>
@@ -397,7 +397,7 @@ export default function EventsScreen() {
             </View>
           )}
           
-          {/* Capacity Section */}
+          {/* Kapacitetssektion */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Maximum Capacity (Optional)</Text>
             <TextInput
@@ -412,7 +412,7 @@ export default function EventsScreen() {
             />
           </View>
           
-          {/* Pricing Section */}
+          {/* Prissektion til event om det skal være gratis eller betalt */}
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Event Pricing</Text>
             <View style={styles.pricingToggle}>
@@ -459,7 +459,7 @@ export default function EventsScreen() {
           )}
         </View>
 
-        {/* Existing Events */}
+        {/* Eksisterende Events */}
         <View style={styles.eventsSection}>
           <View style={styles.eventsSectionHeader}>
             <Text style={styles.sectionTitle}>Your Events</Text>
