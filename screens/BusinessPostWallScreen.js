@@ -29,18 +29,18 @@ export default function BusinessPostWallScreen({ route, navigation }) {
   const [events, setEvents] = useState([]);
   const [isFollowing, setIsFollowing] = useState(false);
 
-  // Check if this is a business owner viewing their own wall or a customer viewing a business
+  // tjekker om brugeren er virksomhedsejer og henter businessId og businessName fra route parametre eller brugerprofil
   const isBusinessOwner = userProfile?.userType === 'business';
   const businessId = route?.params?.businessId || (isBusinessOwner ? currentUser?.uid : null);
   const businessName = route?.params?.businessName || userProfile?.businessName || 'Business';
 
-  // Combine posts and events, sorted by timestamp
-  // Only show events to customers viewing business walls, not to business owners on their own wall
+  // samler posts og events i én liste, sorteret efter dato (nyeste først)
+  // håndterer forskellige datoformater og manglende datoer ved at bruge timestamp eller nuværende tid som fallback
   const dataToShow = isBusinessOwner ? posts : [...posts, ...events];
   const combinedData = dataToShow.sort((a, b) => {
     let aTime, bTime;
     
-    // Handle item A
+    // Håndter item A som er enten en post eller en event
     try {
       if (a.timestamp) {
         aTime = a.timestamp;
@@ -61,7 +61,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
       aTime = Date.now();
     }
     
-    // Handle item B
+    // Håndterer item B på samme måde
     try {
       if (b.timestamp) {
         bTime = b.timestamp;
@@ -92,7 +92,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
       setIsFollowing(userProfile.followedVenues.includes(businessId));
     }
 
-    // Fetch business info if not business owner
+    // henter virksomhedsinfo hvis brugeren ikke er ejer, for at vise i headeren
     if (!isBusinessOwner && businessId) {
       const businessRef = database.ref(`venues/${businessId}`);
       businessRef.once('value', (snapshot) => {
@@ -102,7 +102,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
       });
     }
 
-    // Fetch business events
+    // henter virksomhedsevents
     const eventsRef = database.ref(`events/${businessId}`);
     const eventsUnsubscribe = eventsRef.on('value', (snapshot) => {
       const eventsData = [];
@@ -132,9 +132,9 @@ export default function BusinessPostWallScreen({ route, navigation }) {
             ...data[key]
           });
         });
-        // Add type to posts
+        // tilføjer type 'post' til hver post for at kunne skelne mellem posts og events
         postsData.forEach(post => post.type = 'post');
-        // Sort by timestamp (newest first)
+        // sorterer posts efter timestamp, nyeste først
         postsData.sort((a, b) => b.timestamp - a.timestamp);
       }
       setPosts(postsData);
@@ -163,10 +163,10 @@ export default function BusinessPostWallScreen({ route, navigation }) {
     }
   };
 
-  // Pick image from gallery
+  // til at vælge billede fra galleri
   const pickImage = async () => {
     try {
-      // Request media library permissions
+      // spørger om tilladelse fra medialibary
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (status !== 'granted') {
@@ -194,12 +194,12 @@ export default function BusinessPostWallScreen({ route, navigation }) {
     }
   };
 
-  // Convert image to base64 and store in database (workaround for Storage billing requirement)
+  //konverterer billede til base64 og gemmer det i databasen 
   const uploadImage = async (imageUri) => {
     try {
       console.log('Converting image to base64:', imageUri);
       
-      // Convert image to base64
+      // konverterer
       const response = await fetch(imageUri);
       if (!response.ok) {
         throw new Error(`Failed to fetch image: ${response.status}`);
@@ -212,12 +212,11 @@ export default function BusinessPostWallScreen({ route, navigation }) {
         throw new Error('Image file is empty');
       }
       
-      // Check file size (limit to 1MB for database storage)
+      // tjekker filstørelse
       if (blob.size > 1024 * 1024) {
         throw new Error('Image too large. Please select an image smaller than 1MB.');
       }
       
-      // Convert to base64
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => {
@@ -234,7 +233,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
     }
   };
 
-  // Create new post
+  // laver en ny post
   const createPost = async () => {
     if (!newPostText.trim() && !selectedImage) {
       Alert.alert('Error', 'Please add some text or select an image');
@@ -256,7 +255,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
         } catch (uploadError) {
           console.error('Image upload failed:', uploadError);
           Alert.alert('Upload Failed', 'Failed to upload image. Creating text-only post instead.');
-          // Continue with text-only post if image upload fails
+          // fortsætter med at oprette post uden billede
         }
       }
 
@@ -284,7 +283,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
     }
   };
 
-  // Delete post function
+  // slette post funktion
   const deletePost = async (postId) => {
     if (!businessId) return;
     
@@ -310,7 +309,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
     );
   };
 
-  // Render individual post
+  // opdatering af posts og events
   const renderPost = ({ item }) => (
     <View style={styles.postCard}>
       <View style={styles.postHeader}>
@@ -342,7 +341,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
     </View>
   );
 
-  // Render individual event
+  // opdaterer events med korrekt datoformat
   const renderEvent = ({ item }) => {
     let eventDate;
     let isEventOver = false;
@@ -351,28 +350,26 @@ export default function BusinessPostWallScreen({ route, navigation }) {
     try {
       let dateInput = item.dateTime || item.date || item.timestamp;
       
-      // Handle incomplete dates like "December 15" or "31 december"
+      // håndterer datoformat hvis det er string
       if (typeof dateInput === 'string') {
-        // If the date doesn't contain a year, add current year
         const currentYear = new Date().getFullYear();
         if (!dateInput.includes(currentYear.toString()) && !dateInput.match(/\d{4}/)) {
           dateInput = `${dateInput}, ${currentYear}`;
         }
       }
       
-      // Try to parse the date
+      // forsøger at parse formatet
       eventDate = new Date(dateInput);
       
-      // Check if date is valid
+      // tjekker om det er valid dato
       if (isNaN(eventDate.getTime())) {
         console.warn('Could not parse event date:', item.dateTime || item.date || item.timestamp);
-        // Use the original string as display text instead of parsing
         dateString = String(item.dateTime || item.date || 'Date not available');
-        isEventOver = false; // Can't determine if it's over
+        isEventOver = false;
       } else {
         isEventOver = eventDate < new Date();
         
-        // Format date safely
+        // Formatere datoen
         dateString = eventDate.toLocaleDateString('en-US', {
           weekday: 'short',
           month: 'short',
@@ -380,7 +377,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
           year: 'numeric'
         });
         
-        // Add time if available
+        // tilføjer tidspunkt
         if (item.time) {
           dateString += ` at ${String(item.time)}`;
         }
@@ -394,7 +391,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
     const handleEventPress = () => {
       navigation.navigate('EventDetails', { event: item });
     };
-
+// håndterer try/catch for at sikre at appen ikke crasher ved fejl i datoformat og stadig viser eventen med en fallback dato
     return (
       <TouchableOpacity onPress={handleEventPress} activeOpacity={0.7}>
         <View style={[styles.postCard, styles.eventCard]}>
@@ -428,14 +425,14 @@ export default function BusinessPostWallScreen({ route, navigation }) {
     );
   };
 
-  // Render item based on type
+  // opdaterer renderItem for at håndtere både posts og events i samme liste, baseret på den type der er tilføjet til hvert item
   const renderItem = ({ item }) => {
     if (item.type === 'event') {
       return renderEvent({ item });
     }
     return renderPost({ item });
   };
-
+// viser loading indikator mens data hentes, og håndterer try/catch for at sikre at appen ikke crasher ved fejl i datahentning
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -444,7 +441,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
       </View>
     );
   }
-
+// håndterer try/catch for at sikre at appen ikke crasher ved fejl i datoformat og stadig viser eventen med en fallback dato
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -458,7 +455,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
           </TouchableOpacity>
         )}
       </View>
-
+      {/* liste over posts og events */}
       <FlatList
         data={combinedData}
         renderItem={renderItem}
@@ -497,7 +494,8 @@ export default function BusinessPostWallScreen({ route, navigation }) {
             </View>
           ) : null
         }
-        ListEmptyComponent={
+        // håndterer epmpty state
+        ListEmptyComponent={ 
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>No posts yet</Text>
             <Text style={styles.emptySubtext}>
@@ -510,12 +508,13 @@ export default function BusinessPostWallScreen({ route, navigation }) {
         }
       />
 
-      {/* Create Post Modal */}
+      {/* til at lave post */}
       <Modal
         visible={showCreateModal}
         animationType="slide"
         presentationStyle="pageSheet"
       >
+        {/* container til at lave post */}
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity
@@ -560,7 +559,7 @@ export default function BusinessPostWallScreen({ route, navigation }) {
                 </TouchableOpacity>
               </View>
             )}
-
+            {/* knap til at tilføje billede */}
             <View style={styles.actionButtons}>
               <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
                 <Text style={styles.imageButtonText}>📷 Add Photo</Text>

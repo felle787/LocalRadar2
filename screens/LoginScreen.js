@@ -4,12 +4,15 @@ import { useAuth } from '../contexts/AuthContext';
 import styles from '../styles/LoginScreenStyles';
 
 export default function LoginScreen({ navigation }) {
+  // State variabler for email, password og loading status
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
+  // Handler for login - validerer input og kalder login-funktion
   const handleLogin = async () => {
+    // Tjek hvis email eller password er tomme
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -17,6 +20,7 @@ export default function LoginScreen({ navigation }) {
 
     try {
       setLoading(true);
+      // Kald login-funktion fra AuthContext
       await login(email, password);
     } catch (error) {
       Alert.alert('Error', 'Failed to log in. Please check your credentials.');

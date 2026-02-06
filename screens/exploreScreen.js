@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, useWindowDimensions, ActivityIndicator, StyleSheet, Alert, TextInput, ScrollView, Keyboard } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { View, Text, FlatList, TouchableOpacity, useWindowDimensions, ActivityIndicator, StyleSheet, Alert, TextInput, ScrollView, Keyboard, KeyboardAvoidingView, Platform, TouchableWithoutFeedback } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';//import af google maps komponenten og marker til at vise lokationer på kortet
 import * as Location from 'expo-location'; //expo location bruges til at hente brugerens lokation
@@ -8,9 +8,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { exploreScreenStyles as styles } from '../styles/exploreScreenStyles';
 
 
-// Helper function to calculate distance between two coordinates using Haversine formula
+// hjælper med at beregne afstand mellem brugerens lokation og venues/events for at kunne sortere og filtrere baseret på afstand
 const calculateDistance = (lat1, lon1, lat2, lon2) => {
-  const R = 6371; // Earth's radius in kilometers
+  const R = 6371;
   const dLat = (lat2 - lat1) * (Math.PI / 180);
   const dLon = (lon2 - lon1) * (Math.PI / 180);
   const a =
@@ -20,10 +20,10 @@ const calculateDistance = (lat1, lon1, lat2, lon2) => {
       Math.sin(dLon / 2) *
       Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // Distance in kilometers
+  return R * c; // retunerer afstand i kilometer
 };
 
-// Category constants for filtering
+// kategori til at filtrere på både primær kategori og aktivitetskategori
 const PRIMARY_CATEGORIES = [
   'Bar', 'Restaurant', 'Pub', 'Club', 'Cafe', 'Brewery', 'Lounge', 
   'Wine Bar', 'Cocktail Bar', 'Sports Bar', 'Rooftop Bar', 'Hotel Bar', 'Store'
@@ -49,20 +49,32 @@ export default function ExploreScreen({ navigation }) {
   const isNarrow = width < 500;
 
   const mapRef = useRef(null); // reference til map komponenten så vi kan styre det programmatisk
+  const venuesRef = useRef([]); // ref til venues for at undgå infinite loops
+  const eventsRef = useRef([]); // ref til events for at undgå infinite loops
   const [region, setRegion] = useState(null); // state til at holde styr på den delen af kortet der vises
   const [loading, setLoading] = useState(true); // state til at vise om brugerens lokation stadig hentes
   const [venues, setVenues] = useState([]); // state til at holde styr på venues fra Firestore
   const [filteredVenues, setFilteredVenues] = useState([]); // filtered venue list
   const [events, setEvents] = useState([]); // state for events
   const [filteredEvents, setFilteredEvents] = useState([]); // filtered events list
+  
+  // Opdater refs når state ændres
+  useEffect(() => {
+    venuesRef.current = venues;
+  }, [venues]);
+  
+  useEffect(() => {
+    eventsRef.current = events;
+  }, [events]);
+  
   const [userLocation, setUserLocation] = useState(null); // store user's location for distance calculations
   
-  // View toggle state
+  // sate til at holde styr på hvilken view mode brugeren er i
   const [viewMode, setViewMode] = useState('businesses'); // 'businesses' or 'events'
   
   // Filter states
-  const [distanceInput, setDistanceInput] = useState('');
-  const [selectedDistance, setSelectedDistance] = useState(null);
+  const [distanceInput, setDistanceInput] = useState('1');
+  const [selectedDistance, setSelectedDistance] = useState(1); // Default 1 km
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedDateFilter, setSelectedDateFilter] = useState('all'); // 'all', 'today', 'tomorrow', 'this_week'
   const [showDistanceFilter, setShowDistanceFilter] = useState(false);
@@ -90,7 +102,7 @@ export default function ExploreScreen({ navigation }) {
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude
         };
-        setUserLocation(userCoords); // store for distance calculations
+        setUserLocation(userCoords); // gemmer brugerens lokation i for senere brug i afstandsberegninger
         setRegion({ // sætter region til brugerens nuværende lokation
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
@@ -110,17 +122,17 @@ export default function ExploreScreen({ navigation }) {
     })();
   }, []);
 
-  // Fetch venues from Realtime Database in real-time
+  // henter venues fra Firestore og lytter efter ændringer i realtid, beregner afstand til hver venue og sorterer dem baseret på afstand
   useEffect(() => {
-    const venuesRef = database.ref('venues');
+    const venuesDbRef = database.ref('venues');
     
-    const unsubscribe = venuesRef.on('value', (snapshot) => {
+    const unsubscribe = venuesDbRef.on('value', (snapshot) => {
       const venuesData = [];
       if (snapshot.exists()) {
         const venues = snapshot.val();
         Object.keys(venues).forEach((key) => {
           const data = venues[key];
-          // Only include venues that have coordinates
+          // Tjek at koordinater findes og er gyldige før vi prøver at beregne afstand
           if (data.coordinates && data.coordinates.latitude && data.coordinates.longitude) {
             const venue = {
               id: key,
@@ -135,7 +147,7 @@ export default function ExploreScreen({ navigation }) {
               longitude: data.coordinates.longitude,
             };
             
-            // Calculate distance if user location is available
+            // Beregn afstand hvis brugerens lokation er tilgængelig
             if (userLocation) {
               venue.distance = calculateDistance(
                 userLocation.latitude,
@@ -152,25 +164,96 @@ export default function ExploreScreen({ navigation }) {
           }
         });
         
-        // Sort venues by distance (closest first) if user location is available
+        // sorterer på distance (tættest først) hvis brugerens lokation er tilgængelig
         if (userLocation) {
           venuesData.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
         }
       }
+      
       setVenues(venuesData);
-      applyFilters(venuesData);
     }, (error) => {
       console.error('Error fetching venues:', error);
     });
 
-    return () => venuesRef.off('value', unsubscribe);
+    return () => venuesDbRef.off('value', unsubscribe);
   }, []);
 
-  // Fetch events from global events
+  // genberegner afstande når brugerens lokation ændres eller venues loader
   useEffect(() => {
-    const eventsRef = database.ref('globalEvents');
+    if (userLocation && venues.length > 0) {
+      // Tjek om nogen venues mangler distance
+      const needsDistanceCalc = venues.some(v => v.distance === undefined || v.distance === null);
+      if (needsDistanceCalc) {
+        const updatedVenues = venues.map(venue => {
+          if (venue.distance !== undefined) return venue; // Spring over hvis allerede beregnet
+          const distance = calculateDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            venue.latitude,
+            venue.longitude
+          );
+          return {
+            ...venue,
+            distance,
+            distanceText: distance < 1 
+              ? `${Math.round(distance * 1000)}m`
+              : `${distance.toFixed(1)}km`
+          };
+        });
+        updatedVenues.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+        setVenues(updatedVenues);
+      }
+    }
+  }, [userLocation, venues]);
+
+  // Filtrer venues når data eller filters ændrer
+  useEffect(() => {
+    if (venues.length > 0) {
+      applyFilters(venues);
+    }
+  }, [venues, selectedDistance, selectedCategory]);
+
+  // genberegner afstande til events når brugerens lokation ændres eller events loader
+  useEffect(() => {
+    if (userLocation && events.length > 0) {
+      // Tjek om nogen events mangler distance
+      const needsDistanceCalc = events.some(e => e.distance === undefined || e.distance === null);
+      if (needsDistanceCalc) {
+        const updatedEvents = events.map(event => {
+          if (event.distance !== undefined) return event; // Spring over hvis allerede beregnet
+          const distance = calculateDistance(
+            userLocation.latitude,
+            userLocation.longitude,
+            event.latitude,
+            event.longitude
+          );
+          return {
+            ...event,
+            distance,
+            distanceText: distance < 1 
+              ? `${Math.round(distance * 1000)}m`
+              : `${distance.toFixed(1)}km`
+          };
+        });
+        // sorterer på distance med tættest først
+        updatedEvents.sort((a, b) => (a.distance || Infinity) - (b.distance || Infinity));
+        setEvents(updatedEvents);
+      }
+    }
+  }, [userLocation, events]);
+
+  // Filtrer events når filter settings ændrer
+  useEffect(() => {
+    if (events.length > 0) {
+      applyEventsFilters(events);
+    }
+  }, [events, selectedDistance, selectedDateFilter]);
+
+  // genberegner afstande når events loader efter userLocation allerede er sat
+  useEffect(() => {
+    const eventsDbRef = database.ref('globalEvents');
     
-    const unsubscribe = eventsRef.on('value', async (snapshot) => {
+    const unsubscribe = eventsDbRef.on('value', async (snapshot) => {
       const eventsData = [];
       if (snapshot.exists()) {
         const events = snapshot.val();
@@ -178,35 +261,42 @@ export default function ExploreScreen({ navigation }) {
         
         for (const [eventId, eventInfo] of Object.entries(events)) {
           try {
-            // Try to get userId from eventInfo or use venueId as fallback
+            // eventInfo indeholder enten userId eller venueId for at kunne finde den tilhørende event data
             let userId = eventInfo.userId || eventInfo.venueId;
             if (!userId) {
               console.log('No userId or venueId found in eventInfo for event:', eventId);
               continue;
             }
             
-            // Fetch the actual event data
+            // Henter den faktiske event data
             const eventSnapshot = await database.ref(`events/${userId}/${eventId}`).once('value');
             if (eventSnapshot.exists()) {
               const eventData = eventSnapshot.val();
               
-              // Fetch venue data for location
+              // Henter venue data for lokation
               const venueSnapshot = await database.ref(`venues/${userId}`).once('value');
               if (venueSnapshot.exists()) {
                 const venueData = venueSnapshot.val();
                 
                 if (venueData.coordinates && venueData.coordinates.latitude && venueData.coordinates.longitude) {
+                  const latitude = Number(venueData.coordinates.latitude);
+                  const longitude = Number(venueData.coordinates.longitude);
+
+                  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+                    continue;
+                  }
+
                   const event = {
-                    id: eventId,
                     ...eventData,
                     venueId: userId,
                     venueName: venueData.name,
                     venueAddress: venueData.address,
-                    latitude: venueData.coordinates.latitude,
-                    longitude: venueData.coordinates.longitude,
+                    latitude,
+                    longitude,
+                    id: eventId,
                   };
                   
-                  // Calculate distance if user location is available
+                  // Beregn afstand hvis brugerens lokation er tilgængelig
                   if (userLocation) {
                     event.distance = calculateDistance(
                       userLocation.latitude,
@@ -228,13 +318,13 @@ export default function ExploreScreen({ navigation }) {
           }
         }
         
-        // Sort events by date (soonest first)
+        // sorterer på distance hvis brugerens lokation er tilgængelig
         eventsData.sort((a, b) => {
           try {
             const dateA = new Date(a.dateTime || a.timestamp || a.date || 0);
             const dateB = new Date(b.dateTime || b.timestamp || b.date || 0);
             
-            // Handle invalid dates by pushing them to the end
+            // Håndter ugyldige datoer ved at placere dem til sidst
             const isValidA = !isNaN(dateA.getTime());
             const isValidB = !isNaN(dateB.getTime());
             
@@ -251,102 +341,49 @@ export default function ExploreScreen({ navigation }) {
         
 
         setEvents(eventsData);
-        // Apply initial filtering
-        if (eventsData.length > 0) {
-          // We need to call the filter function directly with the new data
-          // since the state hasn't updated yet
-          let filtered = [...eventsData];
-          
-          // Filter out expired events (always apply this filter)
-          const now = new Date();
-          filtered = filtered.filter(event => {
-            const eventDate = new Date(event.dateTime || event.timestamp);
-            return eventDate >= now; // Only show future events
-          });
-          
-          // Distance filter
-          if (selectedDistance && userLocation) {
-            filtered = filtered.filter(event => {
-              const hasDistance = event.distance !== undefined && event.distance !== null;
-              const withinRange = hasDistance && event.distance <= selectedDistance;
-              return withinRange;
-            });
-          }
-          
-          // Date filter
-          if (selectedDateFilter && selectedDateFilter !== 'all') {
-            const now = new Date();
-            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const tomorrow = new Date(today);
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            const weekFromNow = new Date(today);
-            weekFromNow.setDate(weekFromNow.getDate() + 7);
-            
-            filtered = filtered.filter(event => {
-              const eventDate = new Date(event.dateTime || event.timestamp);
-              const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-              
-              switch (selectedDateFilter) {
-                case 'today':
-                  return eventDay.getTime() === today.getTime();
-                case 'tomorrow':
-                  return eventDay.getTime() === tomorrow.getTime();
-                case 'this_week':
-                  return eventDate >= now && eventDate <= weekFromNow;
-                default:
-                  return true;
-              }
-            });
-          }
-          
-
-          setFilteredEvents(filtered);
-        }
       } else {
         console.log('No events found in globalEvents');
         setEvents([]);
       }
     });
     
-    return () => eventsRef.off('value', unsubscribe);
+    return () => eventsDbRef.off('value', unsubscribe);
   }, []);
   
-  // Apply filters to venue list
-  const applyFilters = (venueList = venues) => {
-    let filtered = [...venueList];
+  // funktion til at anvende både distance og kategori filter på venues listen, kaldes når venues opdateres eller når filtervalg ændres
+  const applyFilters = useCallback((venueList) => {
+    const listToFilter = venueList || venuesRef.current;
+    let filtered = [...listToFilter];
     
-    // Distance filter
     if (selectedDistance && userLocation) {
-      console.log(`Filtering by distance: ${selectedDistance}km`);
       filtered = filtered.filter(venue => {
         const hasDistance = venue.distance !== undefined && venue.distance !== null;
         const withinRange = hasDistance && venue.distance <= selectedDistance;
-        console.log(`Venue ${venue.name}: distance=${venue.distance}, within range=${withinRange}`);
         return withinRange;
       });
     }
     
-    // Category filter (includes both primary type and activity categories)
+    // hvis kategorifilter er valgt, filtrer både på primær kategori og aktivitetskategori
     if (selectedCategory) {
-      console.log(`Filtering by category: ${selectedCategory}`);
       filtered = filtered.filter(venue => {
-        // Check primary type
+        // tjek primær kategori
         if (venue.type === selectedCategory) return true;
-        // Check activity categories
+        // tjek aktivitetskategorier
         if (venue.categories && venue.categories.includes(selectedCategory)) return true;
         return false;
       });
     }
-    
+  
 
     setFilteredVenues(filtered);
-  };
+  }, [selectedDistance, selectedCategory, userLocation]);
 
-  // Apply filters to events list
-  const applyEventsFilters = (eventList = events) => {
-    let filtered = [...eventList];
+  // funktion til at anvende filtre på events listen
+  const applyEventsFilters = useCallback((eventList) => {
+    const listToFilter = eventList || eventsRef.current;
+    let filtered = [...listToFilter];
     
-    // Distance filter
+    // distance filter
     if (selectedDistance && userLocation) {
       filtered = filtered.filter(event => {
         const hasDistance = event.distance !== undefined && event.distance !== null;
@@ -355,24 +392,24 @@ export default function ExploreScreen({ navigation }) {
       });
     }
     
-    // Filter out expired events (always apply this filter)
+    // Filtrer udløbne events (anvend altid dette filter)
     const now = new Date();
     filtered = filtered.filter(event => {
       try {
         const dateSource = event.dateTime || event.timestamp || event.date;
-        if (!dateSource) return false; // No date information
+        if (!dateSource) return false;
         
         const eventDate = new Date(dateSource);
-        if (isNaN(eventDate.getTime())) return false; // Invalid date
+        if (isNaN(eventDate.getTime())) return false; // Invalid dato
         
-        return eventDate >= now; // Only show future events
+        return eventDate >= now; // ikke udløbne events
       } catch (error) {
         console.log('Error filtering expired events for event:', event.id, error);
-        return false; // Exclude events with date parsing errors
+        return false; // ekskluder events med fejl i dato parsing
       }
     });
     
-    // Date filter
+    // Dato filter
     if (selectedDateFilter && selectedDateFilter !== 'all') {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const tomorrow = new Date(today);
@@ -409,38 +446,14 @@ export default function ExploreScreen({ navigation }) {
     
 
     setFilteredEvents(filtered);
-  };
+  }, [selectedDistance, selectedDateFilter, userLocation]);
   
-  // Update filters when selections change
-  useEffect(() => {
-    if (venues.length > 0) {
-      applyFilters();
-    }
-  }, [selectedDistance, selectedCategory, venues]);
-
-  // Separate useEffect for location-based updates
-  useEffect(() => {
-    if (venues.length > 0 && userLocation) {
-      applyFilters();
-    }
-    if (events.length > 0 && userLocation) {
-      applyEventsFilters();
-    }
-  }, [userLocation]);
-  
-  useEffect(() => {
-    if (events.length > 0) {
-      applyEventsFilters();
-    }
-  }, [selectedDistance, selectedDateFilter, events]);
-  
-  // Clear category filter
   const clearCategoryFilter = () => {
     setSelectedCategory(null);
     setShowCategoryFilter(false);
   };
   
-  // Handle distance input
+  // hændterer ændringer i distance input
   const handleDistanceInput = (text) => {
     setDistanceInput(text);
     const distance = parseFloat(text);
@@ -451,14 +464,13 @@ export default function ExploreScreen({ navigation }) {
     }
   };
   
-  // Clear distance filter
   const clearDistanceFilter = () => {
     setSelectedDistance(null);
     setDistanceInput('');
     setShowDistanceFilter(false);
   };
   
-  // Toggle dropdowns with mutual exclusion
+  // funktioner til at håndtere visning af filter dropdowns, sørger for at kun en dropdown er åben ad gangen
   const toggleDistanceFilter = () => {
     if (showCategoryFilter) setShowCategoryFilter(false);
     setShowDistanceFilter(!showDistanceFilter);
@@ -467,7 +479,7 @@ export default function ExploreScreen({ navigation }) {
   const toggleCategoryFilter = () => {
     if (showDistanceFilter) setShowDistanceFilter(false);
     setShowCategoryFilter(!showCategoryFilter);
-  }; // Re-run when user location changes
+  };
 
   const layout = useMemo( // useMemo bruges til at huske en værdi mellem rendering, så den ikke skal genberegnes hver gang
     () => (isNarrow ? styles.stack : styles.columns),
@@ -510,7 +522,7 @@ export default function ExploreScreen({ navigation }) {
         // Unfollow venue
         updatedFollowed = userProfile.followedVenues.filter(id => id !== venue.id);
       } else {
-        // Follow venue
+        // følg venue
         updatedFollowed = [...(userProfile.followedVenues || []), venue.id];
       }
 
@@ -523,42 +535,50 @@ export default function ExploreScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Explore</Text>
-        <Text style={styles.subtitle}>Discover local {viewMode === 'businesses' ? 'businesses' : 'events'}</Text>
-        
-        {/* View Toggle */}
-        <View style={styles.viewToggle}>
-          <TouchableOpacity
-            style={[styles.toggleButton, viewMode === 'businesses' && styles.toggleButtonActive]}
-            onPress={() => {
-              setViewMode('businesses');
-              // Close all dropdowns when switching modes
-              setShowDateFilter(false);
-              setShowDistanceFilter(false);
-            }}
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContainer}
+            keyboardShouldPersistTaps="handled"
           >
-            <Text style={[styles.toggleButtonText, viewMode === 'businesses' && styles.toggleButtonTextActive]}>
-              Businesses
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleButton, viewMode === 'events' && styles.toggleButtonActive]}
-            onPress={() => {
-              setViewMode('events');
-              // Close all dropdowns when switching modes
-              setShowCategoryFilter(false);
-              setShowDistanceFilter(false);
-            }}
-          >
-            <Text style={[styles.toggleButtonText, viewMode === 'events' && styles.toggleButtonTextActive]}>
-              Events
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>Explore</Text>
+              <Text style={styles.subtitle}>Discover local {viewMode === 'businesses' ? 'businesses' : 'events'}</Text>
+              
+              {/* visnings Toggle */}
+              <View style={styles.viewToggle}>
+                <TouchableOpacity
+                  style={[styles.toggleButton, viewMode === 'businesses' && styles.toggleButtonActive]}
+                  onPress={() => {
+                    setViewMode('businesses');
+                    // lukker alle dropdowns når man skifter visning
+                    setShowDateFilter(false);
+                    setShowDistanceFilter(false);
+                  }}
+                >
+                  <Text style={[styles.toggleButtonText, viewMode === 'businesses' && styles.toggleButtonTextActive]}>
+                    Businesses
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toggleButton, viewMode === 'events' && styles.toggleButtonActive]}
+                  onPress={() => {
+                    setViewMode('events');
+                    setShowCategoryFilter(false);
+                    setShowDistanceFilter(false);
+                  }}
+                >
+                  <Text style={[styles.toggleButtonText, viewMode === 'events' && styles.toggleButtonTextActive]}>
+                    Events
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
 
-      <View style={[styles.content, layout]}>
+            <View style={[styles.content, layout]}>
         {/* Map */}
         <View style={[styles.section, styles.mapWrap]}>
           {loading || !region ? (
@@ -573,37 +593,67 @@ export default function ExploreScreen({ navigation }) {
               style={StyleSheet.absoluteFill}
               initialRegion={region}
             >
+              {/* Brugerens position marker */}
+              {userLocation && (
+                <Marker
+                  coordinate={{
+                    latitude: userLocation.latitude,
+                    longitude: userLocation.longitude
+                  }}
+                  title="your position"
+                  description="you are here"
+                  pinColor="#007AFF"
+                />
+              )}
+              
               {viewMode === 'businesses' ? 
-                filteredVenues.map((venue) => (
-                  <Marker
-                    key={venue.id}
-                    coordinate={{ latitude: venue.latitude, longitude: venue.longitude }}
-                    title={venue.name}
-                    description={`${venue.type} • ${venue.location || venue.address}`}
-                    onPress={() => navigation.navigate('Business', { venue })}
-                  />
-                )) :
-                filteredEvents.map((event) => (
-                  <Marker
-                    key={event.id}
-                    coordinate={{ latitude: event.latitude, longitude: event.longitude }}
-                    title={event.title || event.name}
-                    description={`${event.venueName} • ${new Date(event.dateTime || event.timestamp).toLocaleDateString()}`}
-                    pinColor="#FF6B6B"
-                    onPress={() => navigation.navigate('EventDetails', { event })}
-                  />
-                ))
+                filteredVenues.map((venue) => {
+                  const latitude = Number(venue.latitude);
+                  const longitude = Number(venue.longitude);
+                  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+                  return (
+                    <Marker
+                      key={venue.id}
+                      coordinate={{ latitude, longitude }}
+                      title={venue.name}
+                      description={`${venue.type} • ${venue.location || venue.address}`}
+                      onPress={() => navigation.navigate('Business', { venue })}
+                    />
+                  );
+                }) :
+                filteredEvents.map((event) => {
+                  const latitude = Number(event.latitude);
+                  const longitude = Number(event.longitude);
+                  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+                  let dateStr = '';
+                  try {
+                    const date = new Date(event.dateTime || event.timestamp);
+                    dateStr = date.toLocaleDateString();
+                  } catch (e) {
+                    dateStr = 'Date TBD';
+                  }
+                  return (
+                    <Marker
+                      key={event.id}
+                      coordinate={{ latitude, longitude }}
+                      title={event.title || event.name || 'Event'}
+                      description={`${event.venueName || 'Venue'} • ${dateStr}`}
+                      pinColor="#FF6B6B"
+                      onPress={() => navigation.navigate('EventDetails', { event })}
+                    />
+                  );
+                })
               }
             </MapView>
           )}
         </View>
 
-        {/* Filter Controls */}
+        {/* Filter kontrol */}
         <View style={styles.filterContainer}>
           <View style={styles.filterRow}>
             <Text style={styles.filterTitle}>Filters:</Text>
             
-            {/* Distance Filter */}
+            {/* Distance filter */}
             <View style={styles.distanceInputContainer}>
               <Text style={styles.distanceLabel}>Within:</Text>
               <TextInput
@@ -619,18 +669,10 @@ export default function ExploreScreen({ navigation }) {
                 onBlur={() => Keyboard.dismiss()}
                 blurOnSubmit={true}
               />
-              {distanceInput.length > 0 && (
-                <TouchableOpacity 
-                  style={styles.doneButton}
-                  onPress={() => Keyboard.dismiss()}
-                >
-                  <Text style={styles.doneButtonText}>Done</Text>
-                </TouchableOpacity>
-              )}
             </View>
             
             {viewMode === 'businesses' ? (
-              /* Category Filter for businesses */
+              /* kategori filter til virksomheder */
               <TouchableOpacity 
                 style={[styles.filterButton, selectedCategory && styles.filterButtonActive]}
                 onPress={toggleCategoryFilter}
@@ -641,7 +683,7 @@ export default function ExploreScreen({ navigation }) {
                 <Text style={styles.filterArrow}>{showCategoryFilter ? '▲' : '▼'}</Text>
               </TouchableOpacity>
             ) : (
-              /* Date Filter for events */
+              /* Dato filter til events */
               <TouchableOpacity 
                 style={[styles.filterButton, selectedDateFilter !== 'all' && styles.filterButtonActive]}
                 onPress={() => setShowDateFilter(!showDateFilter)}
@@ -656,7 +698,7 @@ export default function ExploreScreen({ navigation }) {
               </TouchableOpacity>
             )}
             
-            {/* Clear Filters */}
+            {/* Ryd filtre */}
             {(distanceInput || selectedCategory || selectedDateFilter !== 'all') && (
               <TouchableOpacity 
                 style={styles.clearFiltersButton}
@@ -675,7 +717,7 @@ export default function ExploreScreen({ navigation }) {
             )}
           </View>
           
-          {/* Category Dropdown */}
+          {/* kategori dropdown */}
           {showCategoryFilter && (
             <View style={styles.dropdownContainer}>
               <ScrollView 
@@ -731,7 +773,7 @@ export default function ExploreScreen({ navigation }) {
             </View>
           )}
           
-          {/* Date Filter Dropdown */}
+          {/* Dato filter dropdown */}
           {showDateFilter && (
             <View style={styles.dropdownContainer}>
               <ScrollView 
@@ -816,7 +858,7 @@ export default function ExploreScreen({ navigation }) {
           )}
         </View>
 
-        {/* List Section */}
+        {/* Liste sektion med virksomheder */}
         <View style={styles.listWrap}>
           {viewMode === 'businesses' ? (
             <>
@@ -830,6 +872,7 @@ export default function ExploreScreen({ navigation }) {
                 data={filteredVenues}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={[styles.listPad, { paddingBottom: 0 }]}
+                scrollEnabled={false}
                 renderItem={({ item }) => (
                   <View style={styles.card}>
                     <TouchableOpacity onPress={() => goToVenue(item)} style={styles.cardContent}>
@@ -866,10 +909,11 @@ export default function ExploreScreen({ navigation }) {
                     )}
                   </View>
                 )}
+                // vis en tom tilstand hvis ingen venues matches filtrene
                 ListEmptyComponent={
                   <View style={styles.emptyState}>
                     <Text style={styles.emptyText}>No businesses found</Text>
-                    <Text style={styles.emptySubtext}>Business owners can add their venues to appear here</Text>
+                    <Text style={styles.emptySubtext}>Apply a filter or business owners can add their venues to appear here</Text>
                   </View>
                 }
               />
@@ -886,11 +930,12 @@ export default function ExploreScreen({ navigation }) {
                 data={filteredEvents}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={[styles.listPad, { paddingBottom: 0 }]}
+                scrollEnabled={false}
                 renderItem={({ item }) => {
                   let dateText = 'Date TBD';
                   
                   try {
-                    // Safe date parsing with multiple fallbacks
+                    // håndterer forskellige mulige dato/tid felter og formater, prøver at parse dem
                     let eventDate;
                     
                     if (item.dateTime) {
@@ -900,23 +945,23 @@ export default function ExploreScreen({ navigation }) {
                     } else if (item.dateISO && item.time) {
                       eventDate = new Date(item.dateISO + 'T' + item.time + ':00');
                     } else if (item.date) {
-                      // Handle various date formats
+                      // håndterer forskellige datoformater, prøver først ISO format, så almindelig dato
                       eventDate = new Date(item.date);
                     }
                     
-                    // Check if date is valid and format it
+                    // tjek om datoen er gyldig
                     if (eventDate && !isNaN(eventDate.getTime())) {
                       dateText = eventDate.toLocaleDateString('en-US', {
                         month: 'short',
                         day: 'numeric'
                       });
                       
-                      // Add time if available
+                      // tilføj tid hvis den er tilgængelig
                       if (item.time) {
                         dateText += ` • ${item.time}`;
                       }
                     } else if (item.date) {
-                      // If parsing failed but we have a date string, show it as is
+                      // hvis parsing fejler, så brug rå dato tekst
                       dateText = item.date;
                       if (item.time) {
                         dateText += ` • ${item.time}`;
@@ -924,7 +969,6 @@ export default function ExploreScreen({ navigation }) {
                     }
                   } catch (error) {
                     console.log('Error parsing event date for event:', item.id, error);
-                    // Fallback to raw date string if available
                     if (item.date) {
                       dateText = item.date;
                       if (item.time) {
@@ -934,7 +978,7 @@ export default function ExploreScreen({ navigation }) {
                   }
                   
                   return (
-                    <TouchableOpacity 
+                    <TouchableOpacity // gør hele kortet klikbart for at gå til event detaljer
                       style={styles.eventCard}
                       onPress={() => navigation.navigate('EventDetails', { event: item })}
                     >
@@ -966,6 +1010,9 @@ export default function ExploreScreen({ navigation }) {
           )}
         </View>
       </View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }

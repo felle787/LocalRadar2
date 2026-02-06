@@ -14,6 +14,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { profileScreenStyles } from '../styles/profileScreenStyles';
 import NotificationService from '../services/NotificationService';
 
+// Profilskærm for brugere, viser brugerinfo, fulgte virksomheder, mine events og notifikationsindstillinger
 export default function ProfileScreen({ navigation }) {
   const { currentUser, userProfile, logout } = useAuth();
   const [followedVenues, setFollowedVenues] = useState([]);
@@ -27,7 +28,7 @@ export default function ProfileScreen({ navigation }) {
     if (currentUser && userProfile) {
       let followedUnsubscribe, eventsUnsubscribe;
 
-      // Get all venues and filter locally
+      // henter fulgte virksomheder for at vise i profilen
       const venuesRef = database.ref('venues');
       
       followedUnsubscribe = venuesRef.on('value', (snapshot) => {
@@ -38,7 +39,7 @@ export default function ProfileScreen({ navigation }) {
             ...venues[key]
           }));
 
-          // Filter followed venues
+          //filtrerer de virksomheder som brugeren følger for at vise i profilen
           if (userProfile.followedVenues && userProfile.followedVenues.length > 0) {
             const followed = allVenues.filter(venue => 
               userProfile.followedVenues.includes(venue.id)
@@ -52,7 +53,7 @@ export default function ProfileScreen({ navigation }) {
         }
       });
 
-      // Load my events (signed up events that haven't passed)
+      // Henter mine events (tilmeldte events der ikke er passeret)
       const eventsRef = database.ref('globalEvents');
       const participantsRef = database.ref('eventParticipants');
       
@@ -61,14 +62,14 @@ export default function ProfileScreen({ navigation }) {
           const participants = participantsSnapshot.val();
           const myEventIds = [];
           
-          // Find events user has signed up for
+          // finder alle eventIDs hvor den nuværende bruger er tilmeldt
           Object.keys(participants).forEach(eventId => {
             if (participants[eventId][currentUser.uid]) {
               myEventIds.push(eventId);
             }
           });
           
-          // Get event details for my events
+          // Henter detaljer for mine events
           eventsRef.once('value', (eventsSnapshot) => {
             if (eventsSnapshot.exists()) {
               const events = eventsSnapshot.val();
@@ -80,7 +81,7 @@ export default function ProfileScreen({ navigation }) {
                   const event = events[eventId];
                   const eventDate = new Date(event.timestamp || event.dateTime || event.createdAt);
                   
-                  // Only include upcoming events (not past)
+                  // Inkluder kun kommende events (ikke passerede)
                   if (eventDate >= now) {
                     upcomingEvents.push({
                       id: eventId,
@@ -90,7 +91,7 @@ export default function ProfileScreen({ navigation }) {
                 }
               });
               
-              // Sort by date (soonest first)
+              // Sorter efter dato
               upcomingEvents.sort((a, b) => {
                 const dateA = new Date(a.timestamp || a.dateTime || a.createdAt);
                 const dateB = new Date(b.timestamp || b.dateTime || b.createdAt);
@@ -118,7 +119,7 @@ export default function ProfileScreen({ navigation }) {
     }
   }, [currentUser, userProfile]);
 
-  // Load notification preferences when user profile is available
+  // Indlæser notifikationspræferencer når brugerprofil er tilgængelig
   useEffect(() => {
     if (currentUser && userProfile) {
       loadNotificationPreferences();
@@ -131,9 +132,9 @@ export default function ProfileScreen({ navigation }) {
       const snapshot = await preferencesRef.once('value');
       if (snapshot.exists()) {
         const prefs = snapshot.val();
-        setNewEventNotifications(prefs.newEventNotifications !== false); // default true
-        setDayBeforeReminders(prefs.dayBeforeReminders !== false); // default true
-        setEventDayReminders(prefs.eventDayReminders !== false); // default true
+        setNewEventNotifications(prefs.newEventNotifications !== false);
+        setDayBeforeReminders(prefs.dayBeforeReminders !== false); 
+        setEventDayReminders(prefs.eventDayReminders !== false); 
       }
     } catch (error) {
       console.log('Error loading notification preferences:', error);
@@ -144,7 +145,7 @@ export default function ProfileScreen({ navigation }) {
     try {
       await database.ref(`users/${currentUser.uid}/notificationPreferences/${type}`).set(value);
       
-      // Update notification service with new preferences
+      // Opdaterer lokalt for at sikre at UI reflekterer ændringen med det samme
       const updatedPreferences = {
         newEventNotifications: type === 'newEventNotifications' ? value : newEventNotifications,
         dayBeforeReminders: type === 'dayBeforeReminders' ? value : dayBeforeReminders,
@@ -153,7 +154,7 @@ export default function ProfileScreen({ navigation }) {
       
       await NotificationService.saveUserNotificationData(currentUser.uid, updatedPreferences);
       
-      // If user enabled any reminder type, schedule notifications
+      // Hvis det er en event reminder præference og den er slået til, så planlæg notifikationer for de events brugeren er tilmeldt
       if ((type === 'eventDayReminders' || type === 'dayBeforeReminders') && value) {
         await NotificationService.scheduleUserNotifications(currentUser.uid, updatedPreferences);
       }
@@ -206,7 +207,7 @@ export default function ProfileScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* User Email */}
+        {/* bruger mail */}
         <View style={profileScreenStyles.userSection}>
           <Text style={profileScreenStyles.userEmail}>{currentUser?.email}</Text>
           <Text style={profileScreenStyles.userType}>
@@ -214,13 +215,13 @@ export default function ProfileScreen({ navigation }) {
           </Text>
         </View>
 
-        {/* Stats Row */}
+        {/* Statistik række */}
         <View style={profileScreenStyles.statsRow}>
           <StatCard label="Following" value={stats.following} />
           <StatCard label="My Events" value={stats.myEvents} />
         </View>
 
-        {/* Notification Settings */}
+        {/* Notifikationsindstillinger */}
         <View style={profileScreenStyles.notificationSection}>
           <TouchableOpacity
             style={profileScreenStyles.notificationHeader}
@@ -231,10 +232,10 @@ export default function ProfileScreen({ navigation }) {
               {showNotificationSettings ? '▲' : '▼'}
             </Text>
           </TouchableOpacity>
-          
+          {/* vis notifikationsindstillinger */}
           {showNotificationSettings && (
             <>
-              <View style={profileScreenStyles.notificationItem}>
+              <View style={profileScreenStyles.notificationItem}> 
                 <View style={profileScreenStyles.notificationTextContainer}>
                   <Text style={profileScreenStyles.notificationTitle}>New Event Alerts</Text>
                   <Text style={profileScreenStyles.notificationDescription}>

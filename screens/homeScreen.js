@@ -18,15 +18,25 @@ import { homeScreenStyles } from '../styles/homeScreenStyles';
 
 
 export default function HomeScreen({ navigation }) {
+  // Autentifiseringskontekst
   const { currentUser, userProfile, logout } = useAuth();
+  // Status for liste over alle virksomheder
   const [venues, setVenues] = useState([]);
+  // Status for liste over fulgte virksomheder
   const [followedVenues, setFollowedVenues] = useState([]);
+  // Status for liste over alle begivenheder
   const [events, setEvents] = useState([]);
+  // Status for filtreret begivenhedsliste
   const [filteredEvents, setFilteredEvents] = useState([]);
+  // Status for indlæg fra fulgte virksomheders opslagstavle
   const [wallPosts, setWallPosts] = useState([]);
+  // Status for indlæsning af data
   const [loading, setLoading] = useState(true);
+  // Status for begivenhedsfilter
   const [eventFilter, setEventFilter] = useState('my-events'); // 'my-events', 'all', 'today', 'upcoming', 'this-week', 'past'
-  const [viewMode, setViewMode] = useState('events'); // 'events' or 'my-wall'
+  // Status for visningsmode
+  const [viewMode, setViewMode] = useState('events'); // 'events' eller 'my-wall'
+  // Status for brugerens begivenhedsdeltagelse
   const [userParticipations, setUserParticipations] = useState({});
   const { width } = useWindowDimensions();
   const isNarrow = width < 380;
@@ -41,8 +51,9 @@ export default function HomeScreen({ navigation }) {
 
     let venuesUnsubscribe, eventsUnsubscribe;
 
-    // For customers, get followed and suggested venues
+    // henter data baseret på brugertype(kunde eller virksomhedsejer)
     if (userProfile.userType === 'customer') {
+      // Henter alle virksomheder
       const venuesRef = database.ref('venues');
       venuesUnsubscribe = venuesRef.on('value', (snapshot) => {
         const allVenues = [];
@@ -59,6 +70,7 @@ export default function HomeScreen({ navigation }) {
               date: data.isOpen ? 'Open Now' : 'Closed'
             };
             allVenues.push(venueItem);
+            // Filtrér på fulgte virksomheder
             if (userProfile.followedVenues?.includes(key)) {
               followedList.push(venueItem);
             }
@@ -69,7 +81,7 @@ export default function HomeScreen({ navigation }) {
         setLoading(false);
       });
 
-      // Load events for customers
+      // Indlæs begivenheder for kunder
       const eventsRef = database.ref('globalEvents');
       eventsUnsubscribe = eventsRef.limitToLast(10).on('value', (snapshot) => {
         const eventsList = [];
@@ -81,7 +93,7 @@ export default function HomeScreen({ navigation }) {
               ...eventsData[key]
             });
           });
-          // Sort by event date, soonest first
+          // Sortering efter begivenhedsdato (nærmeste først)
           eventsList.sort((a, b) => {
             const dateA = a.timestamp || new Date(a.dateTime || a.createdAt).getTime();
             const dateB = b.timestamp || new Date(b.dateTime || b.createdAt).getTime();
@@ -93,7 +105,7 @@ export default function HomeScreen({ navigation }) {
       });
 
     } else {
-      // For business owners, get all venues for discovery (limited to 10)
+      // For virksomhedsejere, hent alle virksomheder for opdagelse (begrænset til 10)
       const venuesRef = database.ref('venues');
       venuesUnsubscribe = venuesRef.limitToFirst(10).on('value', (snapshot) => {
         const venuesList = [];
@@ -125,7 +137,7 @@ export default function HomeScreen({ navigation }) {
     };
   }, [userProfile]);
 
-  // Load posts and events from followed venues for "My Wall" view
+  // Indlæs indlæg og begivenheder fra fulgte virksomheders væg
   useEffect(() => {
     if (!userProfile?.followedVenues || userProfile.followedVenues.length === 0) {
       setWallPosts([]);
@@ -136,6 +148,7 @@ export default function HomeScreen({ navigation }) {
     let completedRequests = 0;
     const totalVenues = userProfile.followedVenues.length;
 
+    // Indlæs begivenheder til opslagsvæg
     const loadEventsForWall = (posts) => {
       const eventsRef = database.ref('globalEvents');
       eventsRef.once('value', (eventSnapshot) => {
@@ -143,6 +156,7 @@ export default function HomeScreen({ navigation }) {
           const allEvents = eventSnapshot.val();
           Object.keys(allEvents).forEach((eventId) => {
             const event = allEvents[eventId];
+            // Tilføj kun begivenheder fra fulgte virksomheder
             if (userProfile.followedVenues.includes(event.venueId)) {
               posts.push({
                 id: eventId,
@@ -154,7 +168,7 @@ export default function HomeScreen({ navigation }) {
           });
         }
         
-        // Sort combined posts and events by timestamp
+        // Sorter kombinerede indlæg og begivenheder efter tidsstempel
         posts.sort((a, b) => {
           const timeA = a.timestamp || new Date(a.dateTime || a.createdAt || Date.now()).getTime();
           const timeB = b.timestamp || new Date(b.dateTime || b.createdAt || Date.now()).getTime();
@@ -167,7 +181,7 @@ export default function HomeScreen({ navigation }) {
       });
     };
 
-    // Load posts from each followed venue
+    // hent indlæg fra hver fulgt virksomhed
     userProfile.followedVenues.forEach((venueId) => {
       const postsRef = database.ref(`businessPosts/${venueId}`);
       postsRef.once('value', (snapshot) => {
@@ -186,7 +200,7 @@ export default function HomeScreen({ navigation }) {
         }
         completedRequests++;
         
-        // Once all posts are loaded, also load events
+        // Når alle indlæg er indlæst, indlæs også begivenheder
         if (completedRequests === totalVenues) {
           loadEventsForWall(combinedPosts);
         }
@@ -194,7 +208,7 @@ export default function HomeScreen({ navigation }) {
     });
   }, [userProfile?.followedVenues]);
   
-  // Load user's event participations
+  // Indlæs brugerens event
   useEffect(() => {
     if (!currentUser) {
       setUserParticipations({});
@@ -220,7 +234,7 @@ export default function HomeScreen({ navigation }) {
     };
   }, [currentUser]);
   
-  // Filter events based on selected filter
+  // Filtrer begivenheder baseret på valgt filter
   const applyEventFilter = (eventsList, filter) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -270,7 +284,7 @@ export default function HomeScreen({ navigation }) {
         });
         break;
       default:
-        // 'all' shows only future events
+        // 'all' viser kun fremtidige begivenheder
         filtered = eventsList.filter(event => {
           const eventDate = new Date(event.timestamp || event.dateTime || event.createdAt);
           return eventDate >= now;
@@ -280,7 +294,7 @@ export default function HomeScreen({ navigation }) {
     setFilteredEvents(filtered);
   };
   
-  // Update filtered events when filter changes
+  // Opdater filtrerede begivenheder når filter ændres
   useEffect(() => {
     applyEventFilter(events, eventFilter);
   }, [events, eventFilter, userParticipations]);
@@ -304,7 +318,7 @@ export default function HomeScreen({ navigation }) {
           />
         </View>
         
-        {/* View Toggle for customers only */}
+        {/* Visningsudveksling kun for kunder */}
         {userProfile?.userType === 'customer' && (
           <View style={homeScreenStyles.viewToggle}>
             <TouchableOpacity
@@ -327,7 +341,7 @@ export default function HomeScreen({ navigation }) {
         )}
 
         <View style={[homeScreenStyles.content, layout]}>
-          {/* Different content based on user type */}
+          {/* Forskelligt indhold baseret på brugertype */}
           {userProfile?.userType === 'customer' ? (
             viewMode === 'events' ? (
               <>
@@ -489,7 +503,7 @@ export default function HomeScreen({ navigation }) {
             </>
           )}
 
-          {/* Bottom section for business owners only */}
+          {/* Bundsektion kun for virksomhedsejere */}
           {userProfile?.userType !== 'customer' && (
           <View style={[homeScreenStyles.section, homeScreenStyles.bottom]}>
             <View style={homeScreenStyles.sectionHeader}>

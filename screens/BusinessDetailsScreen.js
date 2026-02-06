@@ -32,13 +32,13 @@ export default function BusinessDetailsScreen({ route, navigation }) {
         const eventsObj = eventsSnapshot.val();
         Object.keys(eventsObj).forEach(key => {
           const event = { id: key, ...eventsObj[key] };
-          // Only show future events
+          // Kun vis fremtidige begivenheder
           const eventDate = new Date(event.dateTime || event.timestamp);
           if (eventDate >= new Date()) {
             eventsData.push(event);
           }
         });
-        // Sort by date
+        // Sorter events efter dato (nærmeste først)
         eventsData.sort((a, b) => {
           const dateA = new Date(a.dateTime || a.timestamp);
           const dateB = new Date(b.dateTime || b.timestamp);
@@ -50,14 +50,14 @@ export default function BusinessDetailsScreen({ route, navigation }) {
       console.error('Error loading business events:', error);
     }
   };
-
+// Tjek om den nuværende bruger følger virksomheden
   const checkFollowStatus = () => {
     if (currentUser && userProfile) {
       const isFollowed = userProfile.followedVenues?.includes(venue.id) || false;
       setIsFollowing(isFollowed);
     }
   };
-
+// Håndter følg/unfollow logik
   const toggleFollow = async () => {
     if (!currentUser || !userProfile) {
       Alert.alert('Login Required', 'Please log in to follow businesses');
@@ -68,7 +68,7 @@ export default function BusinessDetailsScreen({ route, navigation }) {
       Alert.alert('Feature Unavailable', 'Business accounts cannot follow venues');
       return;
     }
-
+// Opdater følgetilstand i databasen
     setLoading(true);
     try {
       let updatedFollowed;
@@ -92,7 +92,7 @@ export default function BusinessDetailsScreen({ route, navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
+      {/* header til virksomhedsdetaljer */}
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -116,7 +116,7 @@ export default function BusinessDetailsScreen({ route, navigation }) {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Business Info */}
+        {/* virksomhedsinfo */}
         <View style={styles.section}>
           <Text style={styles.businessName}>{venue.name}</Text>
           <Text style={styles.businessType}>{venue.type}</Text>
@@ -131,7 +131,7 @@ export default function BusinessDetailsScreen({ route, navigation }) {
           )}
         </View>
 
-        {/* Description */}
+        {/* beskrivelse */}
         {venue.description && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>About</Text>
@@ -139,7 +139,7 @@ export default function BusinessDetailsScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Categories */}
+        {/* kategorier */}
         {venue.categories && venue.categories.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>What we offer</Text>

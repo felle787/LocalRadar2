@@ -6,6 +6,10 @@ export const exploreScreenStyles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(39, 87, 158, 1)',
   },
+  scrollContainer: {
+    flexGrow: 1,
+    paddingBottom: 24,
+  },
   header: {
     padding: 16,
     paddingBottom: 4,

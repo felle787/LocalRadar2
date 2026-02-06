@@ -8,16 +8,20 @@ import { useAuth } from '../contexts/AuthContext';
 import styles from '../styles/BusinessScreenStyles';
 
 export default function BusinessScreen() {
+  // Autentifiseringskontekst
   const { currentUser, logout } = useAuth();
+  // Tilstand for indlæsning af data
   const [loading, setLoading] = useState(false);
+  // Tilstand for gemning af virksomhedsdata
   const [saving, setSaving] = useState(false);
 
-  // Predefined categories
+  // Foruddefinerede kategorier - hovedkategorier for virksomhedstyp
   const PRIMARY_CATEGORIES = [
     'Bar', 'Restaurant', 'Pub', 'Club', 'Cafe', 'Brewery', 'Lounge', 
     'Wine Bar', 'Cocktail Bar', 'Sports Bar', 'Rooftop Bar', 'Hotel Bar', 'Store'
   ];
   
+  // Aktivitetskategorier - specifikke tilbud og aktiviteter
   const ACTIVITY_CATEGORIES = [
     'Live Music', 'DJ Sets', 'Karaoke', 'Quiz Night', 'Board Games', 
     'Pool/Billiards', 'Darts', 'Open Mic', 'Comedy Show', 'Trivia', 
@@ -32,7 +36,7 @@ export default function BusinessScreen() {
     'Sale', 'Vintage', 'Handmade', 'Local Products', 'Organic', 'Tech Repair'
   ];
 
-  // Form fields with simple state management
+  // Formularfelter - tilstandsvariabler for virksomhedsdata
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [locationText, setLocationText] = useState('');
@@ -42,15 +46,15 @@ export default function BusinessScreen() {
   const [venueImage, setVenueImage] = useState(null);
   const [imageUploading, setImageUploading] = useState(false);
   
-  // UI state for dropdowns
+  // UI tilstand for dropdown-menuer
   const [showPrimaryDropdown, setShowPrimaryDropdown] = useState(false);
   const [showCategoriesDropdown, setShowCategoriesDropdown] = useState(false);
 
-  // Load existing venue data only once on mount, without blocking
+  // Indlæs eksisterende virksomhedsdata ved komponentstart
   useEffect(() => {
     if (!currentUser) return;
     
-    // Try to load existing venue in background, don't block the form
+    // Indlæs virksomhedsdata i baggrunden uden at blokere formularen
     database.ref(`venues/${currentUser.uid}`).once('value')
       .then(snapshot => {
         if (snapshot.exists()) {
@@ -66,10 +70,11 @@ export default function BusinessScreen() {
       })
       .catch(error => {
         console.log('Could not load venue data:', error.message);
-        // Just continue with empty form
+        // Fortsæt med tom formular
       });
   }, [currentUser]);
 
+  // Handler for gemning af virksomhedsdata
   const onSave = async () => {
     if (!currentUser) {
       Alert.alert('Error', 'No user logged in');
@@ -89,6 +94,7 @@ export default function BusinessScreen() {
     try {
       setSaving(true);
       
+      // Opbygge data payload med virksomhedsoplysninger
       const payload = {
         ownerId: currentUser.uid,
         name: name.trim(),
@@ -102,7 +108,7 @@ export default function BusinessScreen() {
         updatedAt: new Date(),
       };
 
-      // Attempt to geocode the address automatically
+      // Forsøg at geocode adressen automatisk for at få koordinater
       let coords = null;
       try {
         const fullAddress = `${address.trim()}, ${locationText.trim()}`;
@@ -125,7 +131,7 @@ export default function BusinessScreen() {
 
       console.log('Saving venue:', payload);
       
-      // Save with timeout protection
+      // Gem med timeout-beskyttelse
       const savePromise = database.ref(`venues/${currentUser.uid}`).set(payload);
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Save operation timed out')), 10000)
@@ -133,6 +139,7 @@ export default function BusinessScreen() {
 
       await Promise.race([savePromise, timeoutPromise]);
       
+      // Bekræft gemning og informer brugeren
       if (coords) {
         Alert.alert('Success!', 'Your venue has been saved and will appear on the map for customers to find!');
       } else {
@@ -150,6 +157,7 @@ export default function BusinessScreen() {
     }
   };
 
+  // for at aktivere/deaktivere kategori
   const toggleCategory = (category) => {
     setSelectedCategories(prev => {
       if (prev.includes(category)) {
@@ -160,9 +168,10 @@ export default function BusinessScreen() {
     });
   };
   
+  //  for at vælge og indlæse billede fra galleriet
   const pickImage = async () => {
     try {
-      // Request permission
+      // Anmod om tilladelse til mediabibliotek
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permissionResult.granted === false) {
@@ -170,7 +179,7 @@ export default function BusinessScreen() {
         return;
       }
 
-      // Launch image picker
+      // Åbn billedvælger
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -180,8 +189,8 @@ export default function BusinessScreen() {
 
       if (!result.canceled) {
         setImageUploading(true);
-        // In a real app, you'd upload to Firebase Storage here
-        // For now, we'll just store the local URI
+        // I en rigtig app ville du uploade til Firebase Storage her
+        // For nu gemmer vi bare den lokale URI
         setVenueImage(result.assets[0].uri);
         setImageUploading(false);
       }
@@ -192,7 +201,7 @@ export default function BusinessScreen() {
     }
   };
   
-  // Close dropdowns when touching outside
+  // Luk dropdownmenuer når der trykkes uden for
   const closeDropdowns = () => {
     setShowPrimaryDropdown(false);
     setShowCategoriesDropdown(false);
@@ -222,7 +231,7 @@ export default function BusinessScreen() {
         style={styles.input} 
         value={name} 
         onChangeText={setName} 
-        placeholder="e.g. Blue Note" 
+        placeholder="e.g. Cafe Carl" 
         placeholderTextColor="#9aa0a6"
         editable={true}
         selectTextOnFocus={true}
@@ -275,7 +284,7 @@ export default function BusinessScreen() {
         style={styles.input} 
         value={locationText} 
         onChangeText={setLocationText} 
-        placeholder="e.g. Soho, NYC" 
+        placeholder="e.g. Copenhagen, Aarhus, Odense" 
         placeholderTextColor="#9aa0a6"
         editable={true}
         selectTextOnFocus={true}

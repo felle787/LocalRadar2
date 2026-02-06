@@ -5,21 +5,27 @@ import { STRIPE_CONFIG } from '../config/stripe';
 import styles from '../styles/PaymentScreenStyles';
 
 export default function PaymentScreen({ route, navigation }) {
+  // Hent event data og callback fra route parametere
   const { event, onPaymentSuccess } = route.params;
+  // Tilstand for indlæsning under betaling
   const [loading, setLoading] = useState(false);
+  // Tilstand for visning af test kort modal
   const [showTestCards, setShowTestCards] = useState(false);
+  // Stripe payment confirmation funktion
   const { confirmPayment } = useStripe();
 
+  // Formater kortnummer med mellemrum (4242 4242 4242 4242)
   const formatCardNumber = (number) => {
     return number.match(/.{1,4}/g)?.join(' ') || number;
   };
 
+  // Handler for betalingsprocessen - simulerer betaling til test
   const handlePayment = async () => {
     setLoading(true);
 
     try {
-      // In a real app, you would call your backend to create a payment intent
-      // For testing purposes, we'll simulate the flow
+      // I en rigtig app ville du kalde din backend til at oprette payment intent
+      // Til testformål simulerer vi flowet
       
       // IMPORTANT: This is a simplified test implementation
       // In production, you MUST have a backend server that:

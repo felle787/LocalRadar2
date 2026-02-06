@@ -15,34 +15,37 @@ import NotificationService from '../services/NotificationService';
 import styles from '../styles/EventDetailsScreenStyles';
 
 export default function EventDetailsScreen({ route, navigation }) {
+  // Hent event data fra route parametere
   const { event } = route.params;
+  // Autentifiseringskontekst
   const { currentUser } = useAuth();
+  // Tilstand for om bruger deltager i event
   const [isParticipating, setIsParticipating] = useState(false);
+  // Tilstand for antal deltagende
   const [participantCount, setParticipantCount] = useState(event.currentAttendees || 0);
+  // Tilstand for indlæsning
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Check if user is already participating
+    // Tjek om bruger allerede deltager i begivenheden
     if (currentUser) {
       checkParticipationStatus();
     }
     
-    // Listen for real-time participant count updates
+    // Lyt efter realtids opdateringer af deltagende antal
     const eventRef = database.ref(`globalEvents/${event.id}`);
     const unsubscribe = eventRef.on('value', (snapshot) => {
       if (snapshot.exists()) {
         const eventData = snapshot.val();
         const count = eventData.currentAttendees || 0;
-        console.log(`EventDetailsScreen: participant count updated to ${count} for event ${event.id}`);
+        // Opdater deltagende antal
         setParticipantCount(count);
         
-        // Initialize currentAttendees field if it doesn't exist
+        // Initialiser currentAttendees felt hvis det ikke eksisterer
         if (eventData.currentAttendees === undefined) {
-          console.log('Initializing currentAttendees field to 0');
           eventRef.child('currentAttendees').set(0);
         }
       } else {
-        console.log('EventDetailsScreen: event not found, setting count to 0');
         setParticipantCount(0);
       }
     });
